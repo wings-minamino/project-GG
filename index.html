@@ -702,6 +702,42 @@ function GachaMissionApp() {
   const [syncBusy,setSyncBusy] = useState(false);
   const [syncMessage,setSyncMessage] = useState('');
   const [needsImport,setNeedsImport] = useState(false);
+  const [restoringSession,setRestoringSession] = useState(true);
+  const [restoreError,setRestoreError] = useState('');
+  const sessionKey = 'gacha-mission:session';
+  function rememberSession(result) {
+    try {sessionStorage.setItem(sessionKey,JSON.stringify({token:result.token,role:result.role,studentId:result.studentId}));} catch {}
+  }
+  function forgetSession() {
+    try {sessionStorage.removeItem(sessionKey);} catch {}
+  }
+  async function restoreSession() {
+    if(cloud.current.busy)return;
+    setRestoringSession(true);setRestoreError('');
+    let saved;
+    try {saved=JSON.parse(sessionStorage.getItem(sessionKey));} catch {forgetSession();}
+    if(!saved || typeof saved.token!=='string' || !['admin','student'].includes(saved.role)) {
+      forgetSession();setRestoringSession(false);return;
+    }
+    cloud.current.busy=true;
+    try {
+      // Restore only after the server accepts the existing session token.
+      const result=await api({action:'get'},saved.token);
+      cloud.current.token=saved.token;cloud.current.generation++;
+      applyCloud(result);setCurrentStudentId(saved.studentId||null);setRole(saved.role);
+      if(['mission','prize'].includes(saved.studentTab))setStudentTab(saved.studentTab);
+      if(typeof saved.adminTab==='string')setAdminTab(saved.adminTab);
+      setRestoringSession(false);
+    } catch(e) {
+      if(e.status===401 || e.status===403){forgetSession();setLoginError('ログインの有効期限が切れました。もう一度ログインしてください。');setRestoringSession(false);}
+      else setRestoreError('接続できません。通信環境を確認して再試行してください。');
+    } finally {cloud.current.busy=false;}
+  }
+  useEffect(()=>{restoreSession();},[]);
+  useEffect(()=>{
+    if(!role||!cloud.current.token)return;
+    try {sessionStorage.setItem(sessionKey,JSON.stringify({token:cloud.current.token,role,studentId:currentStudentId,studentTab,adminTab}));} catch {}
+  },[role,currentStudentId,studentTab,adminTab]);
   const snapshot = {missions, draws, students, rankPrizes, milestonePrizes, deliveries, hiddenMissions, testMissions, achievements, prizeSuggestions, lastPromotionYear, dailyPullLimit};
   latest.current = snapshot;
   const snapshotText = JSON.stringify(snapshot);
@@ -804,6 +840,7 @@ function GachaMissionApp() {
     cloud.current.busy=true;
     try {
       const result=await api({action:'login',role:'student',number:loginNumber.trim()},null);
+      rememberSession(result);
       cloud.current.token=result.token;cloud.current.generation++;
       applyCloud(result);setCurrentStudentId(result.studentId);setRole('student');
       setLoginError('');setLoginNumber('');setStudentTab('mission');setGachaResult(null);setGachaPhase('idle');
@@ -824,6 +861,7 @@ function GachaMissionApp() {
     adminLoginBusy.current = true;
     try {
       const result=await api({action:'login',role:'admin',password:adminPasswordInput},null);
+      rememberSession(result);
       cloud.current.token=result.token;cloud.current.generation++;
       applyCloud(result);
       setRole("admin");
@@ -839,6 +877,7 @@ function GachaMissionApp() {
   function handleLogout() {
     const c=cloud.current;
     if(c.busy||c.pending||(c.baseline&&JSON.stringify(latest.current)!==c.baseline)){window.alert('変更の保存が終わってからログアウトしてください。');return;}
+    forgetSession();
     api({action:'logout'}).catch(()=>{});c.token=null;c.baseline=null;c.generation++;setLoaded(false);
     setRole(null);
     setCurrentStudentId(null);
@@ -1181,6 +1220,10 @@ function GachaMissionApp() {
   const myAchievements = useMemo(() => currentStudentId ? achievements.filter(a => a.studentId === currentStudentId).sort((a, b) => b.achievedAt.localeCompare(a.achievedAt)) : [], [achievements, currentStudentId]);
   const mySuggestions = useMemo(() => currentStudentId ? prizeSuggestions.filter(s => s.studentId === currentStudentId && isRecentSuggestion(s, suggestionNow)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [], [prizeSuggestions, currentStudentId, suggestionNow]);
   const pendingSuggestions = useMemo(() => prizeSuggestions.filter(s => s.status === "検討中").sort((a, b) => a.createdAt.localeCompare(b.createdAt)), [prizeSuggestions]);
+  if (restoringSession) return React.createElement('div',{style:{...styles.app,minHeight:'100dvh',display:'grid',placeItems:'center'}},
+    React.createElement('div',{role:'status',style:{textAlign:'center',padding:24}},
+      restoreError || 'ログイン状態を確認しています…',
+      restoreError && React.createElement('button',{onClick:restoreSession,style:{display:'block',margin:'20px auto'}},'再試行')));
   if (role === null) {
     return /*#__PURE__*/React.createElement("div", {
       style: styles.app
