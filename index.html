@@ -11,7 +11,7 @@
 Node.js・npm・インターネット接続は不要です。
 保存先：このブラウザのlocalStorage。他の端末との共有や旧環境からの自動移行はありません。
 ファイルの移動、ブラウザや開き方の変更により保存先が変わる場合があります。
-管理者パスワードはブラウザごとに初回設定します（簡易ロック）。
+管理者は共通パスワードでログインします（簡易ロック）。
 編集：アプリ本体の区切りより下を編集します。Reactの実行コードはそのままにしてください。 -->
 <div id="root"></div>
 <noscript>JavaScriptを有効にして開いてください。</noscript>
@@ -412,7 +412,8 @@ const initialHiddenMissions = [{
 }];
 const initialTestMissions = [];
 const CAPSULE_COLORS = ["#E4222A", "#FFC93C", "#2B2626", "#8C1116", "#6C6C74", "#FF6B6B"];
-const ADMIN_AUTH_KEY = "gacha-mission:admin-auth";
+const ADMIN_PASSWORD_SALT = [248, 247, 16, 216, 100, 200, 255, 221, 243, 157, 15, 80, 2, 10, 58, 0];
+const ADMIN_PASSWORD_HASH = "992c0a30844da5794de72a832734325d931776eab1b1b22e829ccb4765535ea7";
 async function deriveAdminPassword(password, salt) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits({
@@ -817,31 +818,16 @@ function GachaMissionApp() {
     if (adminLoginBusy.current) return;
     adminLoginBusy.current = true;
     try {
-      const stored = localStorage.getItem(ADMIN_AUTH_KEY);
-      if (!stored) {
-        if (adminPasswordInput.length < 8) {
-          setAdminLoginError("初回は8文字以上のパスワードを設定してください");
-          return;
-        }
-        const salt = Array.from(crypto.getRandomValues(new Uint8Array(16)));
-        const hash = await deriveAdminPassword(adminPasswordInput, salt);
-        localStorage.setItem(ADMIN_AUTH_KEY, JSON.stringify({
-          salt,
-          hash
-        }));
-      } else {
-        const record = JSON.parse(stored);
-        if ((await deriveAdminPassword(adminPasswordInput, record.salt)) !== record.hash) {
-          setAdminLoginError("パスワードが違います");
-          return;
-        }
+      if (!adminPasswordInput || (await deriveAdminPassword(adminPasswordInput, ADMIN_PASSWORD_SALT)) !== ADMIN_PASSWORD_HASH) {
+        setAdminLoginError("パスワードが違います");
+        return;
       }
       setRole("admin");
       setAdminPasswordInput("");
       setAdminLoginError("");
       setShowAdminLogin(false);
     } catch {
-      setAdminLoginError("パスワードの確認・保存ができません。HTTPSで開き、ブラウザの保存設定を確認してください。");
+      setAdminLoginError("パスワードを確認できません。HTTPSで開き直してください。");
     } finally {
       adminLoginBusy.current = false;
     }
@@ -1481,7 +1467,7 @@ function LoginScreen({
     onClick: openAdminLogin
   }, "\u7BA1\u7406\u8005\u306F\u3053\u3061\u3089")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: styles.loginLabel
-  }, "\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306E\u7BA1\u7406\u8005\u30D1\u30B9\u30EF\u30FC\u30C9\u3092\u5165\u529B\uFF08\u521D\u56DE\u306F8\u6587\u5B57\u4EE5\u4E0A\u3067\u8A2D\u5B9A\uFF09\u3002\u30C7\u30FC\u30BF\u306F\u7AEF\u672B\u5185\u306E\u307F\u3067\u3001\u4ED6\u306E\u7AEF\u672B\u3068\u306F\u5171\u6709\u3055\u308C\u307E\u305B\u3093\u3002"), /*#__PURE__*/React.createElement("input", {
+  }, "管理者用の共通パスワードを入力してください。"), /*#__PURE__*/React.createElement("input", {
     type: "password",
     style: styles.loginInput,
     placeholder: "\u30D1\u30B9\u30EF\u30FC\u30C9",
