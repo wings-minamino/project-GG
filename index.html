@@ -325,6 +325,14 @@ const {
   useRef
 } = React;
 const STORAGE_KEY = "gacha-mission:data";
+const SUGGESTION_VISIBLE_MS = 7 * 24 * 60 * 60 * 1000;
+function isRecentSuggestion(suggestion, now) {
+  const sentAt = Number.isFinite(suggestion.createdAtMs)
+    ? suggestion.createdAtMs
+    : Date.parse(suggestion.createdAt);
+  return Number.isFinite(sentAt) && now - sentAt < SUGGESTION_VISIBLE_MS;
+}
+
 const initialStudents = [{
   id: "s1",
   name: "あおい",
@@ -653,6 +661,19 @@ function GachaMissionApp() {
   const [newTestMissionDeadline, setNewTestMissionDeadline] = useState("");
   const [newTestMissionReward, setNewTestMissionReward] = useState("");
   const [newSuggestionText, setNewSuggestionText] = useState("");
+  const [suggestionNow, setSuggestionNow] = useState(() => Date.now());
+  useEffect(() => {
+    const refreshSuggestionTime = () => setSuggestionNow(Date.now());
+    const timer = window.setInterval(refreshSuggestionTime, 60000);
+    window.addEventListener("focus", refreshSuggestionTime);
+    document.addEventListener("visibilitychange", refreshSuggestionTime);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshSuggestionTime);
+      document.removeEventListener("visibilitychange", refreshSuggestionTime);
+    };
+  }, []);
+
   const [convertState, setConvertState] = useState(null); // { id, mode: 'stamp' | 'rank' }
   const [convertValue, setConvertValue] = useState("");
   useEffect(() => {
@@ -1107,6 +1128,7 @@ function GachaMissionApp() {
       text,
       status: "検討中",
       createdAt: todayStr(),
+      createdAtMs: Date.now(),
       resolvedAt: null
     }]);
     setNewSuggestionText("");
@@ -1199,7 +1221,7 @@ function GachaMissionApp() {
   const myEarnedThisMonth = useMemo(() => currentStudentId ? computeEarnedPrizes(draws, students, rankPrizes, milestonePrizes, studentMonth).filter(e => e.studentId === currentStudentId) : [], [draws, students, rankPrizes, milestonePrizes, studentMonth, currentStudentId]);
   const myUnseenAchievement = useMemo(() => currentStudentId ? achievements.find(a => a.studentId === currentStudentId && !a.seen) : null, [achievements, currentStudentId]);
   const myAchievements = useMemo(() => currentStudentId ? achievements.filter(a => a.studentId === currentStudentId).sort((a, b) => b.achievedAt.localeCompare(a.achievedAt)) : [], [achievements, currentStudentId]);
-  const mySuggestions = useMemo(() => currentStudentId ? prizeSuggestions.filter(s => s.studentId === currentStudentId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [], [prizeSuggestions, currentStudentId]);
+  const mySuggestions = useMemo(() => currentStudentId ? prizeSuggestions.filter(s => s.studentId === currentStudentId && isRecentSuggestion(s, suggestionNow)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [], [prizeSuggestions, currentStudentId, suggestionNow]);
   const pendingSuggestions = useMemo(() => prizeSuggestions.filter(s => s.status === "検討中").sort((a, b) => a.createdAt.localeCompare(b.createdAt)), [prizeSuggestions]);
   if (role === null) {
     return /*#__PURE__*/React.createElement("div", {
@@ -1766,7 +1788,7 @@ function StudentPrizeView({
     style: styles.missionList
   }, mySuggestions.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: styles.emptyBox
-  }, "\u307E\u3060\u30EA\u30AF\u30A8\u30B9\u30C8\u306F\u3042\u308A\u307E\u305B\u3093"), mySuggestions.map(s => /*#__PURE__*/React.createElement("div", {
+  }, "直近7日間のリクエストはありません"), mySuggestions.map(s => /*#__PURE__*/React.createElement("div", {
     key: s.id,
     style: styles.missionCard
   }, /*#__PURE__*/React.createElement("div", {
