@@ -412,8 +412,8 @@ const initialHiddenMissions = [{
 }];
 const initialTestMissions = [];
 const CAPSULE_COLORS = ["#E4222A", "#FFC93C", "#2B2626", "#8C1116", "#6C6C74", "#FF6B6B"];
-const ADMIN_PASSWORD_SALT = [248, 247, 16, 216, 100, 200, 255, 221, 243, 157, 15, 80, 2, 10, 58, 0];
-const ADMIN_PASSWORD_HASH = "992c0a30844da5794de72a832734325d931776eab1b1b22e829ccb4765535ea7";
+const ADMIN_PASSWORD_SALT = [63, 206, 219, 96, 7, 115, 190, 181, 94, 233, 243, 214, 105, 219, 251, 21];
+const ADMIN_PASSWORD_HASH = "9a8628ec321f396f6d866d9138f45e20c075ed1c92f4a42302f4bb925ddaa2dc";
 async function deriveAdminPassword(password, salt) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits({
