@@ -8,10 +8,10 @@
 </head>
 <body>
 <!-- 使い方：このファイルをブラウザで開きます。VS CodeではLive ServerのOpen with Live Serverでも起動できます。
-Node.js・npm・インターネット接続は不要です。
-保存先：このブラウザのlocalStorage。他の端末との共有や旧環境からの自動移行はありません。
-ファイルの移動、ブラウザや開き方の変更により保存先が変わる場合があります。
-管理者は共通パスワードでログインします（簡易ロック）。
+Node.js・npmは不要です。データ共有にはインターネット接続が必要です。
+保存先：Supabase。ログイン後に5秒ごとに同期。旧ブラウザのデータは管理者が初回のみ引き継ぎ。
+初回の引き継ぎは以前と同じURL・ブラウザから行ってください。
+管理者は共通パスワードでログインします。共有データへの操作権限はサーバー側で確認します。
 編集：アプリ本体の区切りより下を編集します。Reactの実行コードはそのままにしてください。 -->
 <div id="root"></div>
 <noscript>JavaScriptを有効にして開いてください。</noscript>
@@ -697,141 +697,117 @@ function GachaMissionApp() {
       gachaTimeouts.current.forEach(t => clearTimeout(t));
     };
   }, []);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const saved = window.localStorage.getItem(STORAGE_KEY);
-        const result = saved === null ? null : {
-          value: saved
-        };
-        if (!cancelled && result && result.value) {
-          const data = JSON.parse(result.value);
-          if (data.missions) setMissions(data.missions);
-          if (data.draws) setDraws(data.draws);
-          if (data.students) setStudents(data.students);
-          if (data.rankPrizes) setRankPrizes(data.rankPrizes);
-          if (data.milestonePrizes) setMilestonePrizes(data.milestonePrizes);
-          if (data.deliveries) setDeliveries(data.deliveries);
-          if (data.hiddenMissions) setHiddenMissions(data.hiddenMissions);
-          if (data.testMissions) setTestMissions(data.testMissions);
-          if (data.achievements) setAchievements(data.achievements);
-          if (data.prizeSuggestions) setPrizeSuggestions(data.prizeSuggestions);
-          if (typeof data.lastPromotionYear === "number") setLastPromotionYear(data.lastPromotionYear);
-          if (typeof data.dailyPullLimit === "number") setDailyPullLimit(data.dailyPullLimit);
-        }
-      } catch (e) {
-        // no saved data yet
-      } finally {
-        if (!cancelled) setLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  useEffect(() => {
-    if (!loaded) return;
-    (async () => {
-      try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          missions,
-          draws,
-          students,
-          rankPrizes,
-          milestonePrizes,
-          deliveries,
-          hiddenMissions,
-          testMissions,
-          achievements,
-          prizeSuggestions,
-          lastPromotionYear,
-          dailyPullLimit
-        }));
-        setSaveError(false);
-      } catch (e) {
-        setSaveError(true);
-      }
-    })();
-  }, [missions, draws, students, rankPrizes, milestonePrizes, deliveries, hiddenMissions, testMissions, achievements, prizeSuggestions, lastPromotionYear, dailyPullLimit, loaded]);
-  useEffect(() => {
-    if (!loaded) return;
-    const nowYear = currentAcademicYear();
-    if (lastPromotionYear === null) {
-      setLastPromotionYear(nowYear);
-      return;
-    }
-    if (lastPromotionYear < nowYear) {
-      const steps = nowYear - lastPromotionYear;
-      let next = students;
-      for (let i = 0; i < steps; i++) {
-        next = next.map(promoteStudentGrade).filter(Boolean);
-      }
-      setStudents(next);
-      setLastPromotionYear(nowYear);
-    }
-  }, [loaded]);
-  useEffect(() => {
-    if (!loaded) return;
-    const newAchievements = [];
-    const newSyntheticDraws = [];
-    students.forEach(student => {
-      hiddenMissions.forEach(hm => {
-        const periodKeys = computePeriodKeysMet(draws, student.id, hm);
-        periodKeys.forEach(periodKey => {
-          const already = achievements.some(a => a.studentId === student.id && a.hiddenMissionId === hm.id && a.periodKey === periodKey);
-          if (!already) {
-            const reward = hm.stampReward || 1;
-            newAchievements.push({
-              id: uid("ach"),
-              studentId: student.id,
-              hiddenMissionId: hm.id,
-              periodKey,
-              achievedAt: todayStr(),
-              seen: false,
-              missionName: hm.name,
-              reward
-            });
-            newSyntheticDraws.push({
-              id: uid("hd"),
-              studentId: student.id,
-              missionId: hm.id,
-              missionText: `[隠しミッション] ${hm.name}`,
-              status: "承認済み",
-              color: "#E8A93B",
-              drawnAt: todayStr(),
-              approvedAt: todayStr(),
-              value: reward,
-              hidden: true
-            });
-          }
-        });
-      });
+  const cloud = useRef({token:null,version:-1,baseline:null,busy:false,pending:null,generation:0});
+  const latest = useRef(null);
+  const [syncBusy,setSyncBusy] = useState(false);
+  const [syncMessage,setSyncMessage] = useState('');
+  const [needsImport,setNeedsImport] = useState(false);
+  const snapshot = {missions, draws, students, rankPrizes, milestonePrizes, deliveries, hiddenMissions, testMissions, achievements, prizeSuggestions, lastPromotionYear, dailyPullLimit};
+  latest.current = snapshot;
+  const snapshotText = JSON.stringify(snapshot);
+  async function api(body,token=cloud.current.token) {
+    const r=await fetch('https://phswoncmibtmihpmlvdg.supabase.co/functions/v1/gg-api',{
+      method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},
+      body:JSON.stringify(body),signal:AbortSignal.timeout(20000)
     });
-    if (newAchievements.length > 0) {
-      setAchievements(prev => [...prev, ...newAchievements]);
-      setDraws(prev => [...prev, ...newSyntheticDraws]);
-    }
-  }, [draws, hiddenMissions, students, achievements, loaded]);
+    const result=await r.json();
+    if(!r.ok) throw Object.assign(new Error(result.error||'通信に失敗しました'),{status:r.status});
+    return result;
+  }
+  function applyCloud(result) {
+    if(result.unchanged) return;
+    cloud.current.version=result.version;
+    if(!result.data){setNeedsImport(true);return;}
+    const data=result.data;
+    const next={};
+    next.missions=data.missions; setMissions(data.missions);
+    next.draws=data.draws; setDraws(data.draws);
+    next.students=data.students; setStudents(data.students);
+    next.rankPrizes=data.rankPrizes; setRankPrizes(data.rankPrizes);
+    next.milestonePrizes=data.milestonePrizes; setMilestonePrizes(data.milestonePrizes);
+    next.deliveries=data.deliveries; setDeliveries(data.deliveries);
+    next.hiddenMissions=data.hiddenMissions; setHiddenMissions(data.hiddenMissions);
+    next.testMissions=data.testMissions; setTestMissions(data.testMissions);
+    next.achievements=data.achievements; setAchievements(data.achievements);
+    next.prizeSuggestions=data.prizeSuggestions; setPrizeSuggestions(data.prizeSuggestions);
+    next.lastPromotionYear=data.lastPromotionYear; setLastPromotionYear(data.lastPromotionYear);
+    next.dailyPullLimit=data.dailyPullLimit; setDailyPullLimit(data.dailyPullLimit);
+    cloud.current.baseline=JSON.stringify(next);
+    latest.current=next;
+    setNeedsImport(false);setLoaded(true);setSaveError(false);
+    setSyncMessage('同期済み · 他の端末の変更を5秒ごとに確認');
+  }
+  async function refreshCloud() {
+    const c=cloud.current,g=c.generation;
+    if(!c.token||c.busy||c.pending|| (c.baseline&&JSON.stringify(latest.current)!==c.baseline)) return;
+    try {
+      const result=await api({action:'get',version:c.version});
+      if(g!==c.generation||c.busy||c.pending||(c.baseline&&JSON.stringify(latest.current)!==c.baseline))return;
+      applyCloud(result);setSaveError(false);
+      setSyncMessage('同期済み · 他の端末の変更を5秒ごとに確認');
+    } catch(e) {if(g===c.generation){setSaveError(true);setSyncMessage(e.message+'（再接続を待っています）');}}
+  }
+  useEffect(()=>{
+    const t=setInterval(()=>{if(!document.hidden)refreshCloud();},5000);
+    const focus=()=>refreshCloud();
+    const leave=e=>{const c=cloud.current;if(c.pending||(c.baseline&&JSON.stringify(latest.current)!==c.baseline)){e.preventDefault();e.returnValue='';}};
+    window.addEventListener('focus',focus);document.addEventListener('visibilitychange',focus);
+    window.addEventListener('beforeunload',leave);
+    return ()=>{clearInterval(t);window.removeEventListener('focus',focus);document.removeEventListener('visibilitychange',focus);window.removeEventListener('beforeunload',leave);};
+  },[]);
+  async function saveCloud() {
+    const c=cloud.current;
+    if(c.busy||!c.token||!c.baseline)return;
+    if(!c.pending&&JSON.stringify(latest.current)===c.baseline)return;
+    c.pending=c.pending||{action:'save',version:c.version,requestId:crypto.randomUUID(),data:latest.current};
+    c.busy=true;setSyncBusy(true);setSyncMessage('保存中…');
+    try {const result=await api(c.pending);c.pending=null;applyCloud(result);}
+    catch(e){
+      setSaveError(true);setSyncMessage(e.message+' 未保存です。');
+      if(e.status===409){c.pending=null;const r=await api({action:'get'});applyCloud(r);window.alert(e.message);}
+    } finally {c.busy=false;setSyncBusy(false);}
+  }
+  useEffect(()=>{
+    if(role!=='admin'||needsImport||!cloud.current.baseline||snapshotText===cloud.current.baseline||cloud.current.pending)return;
+    const timer=setTimeout(saveCloud,400);return ()=>clearTimeout(timer);
+  },[snapshotText,role,needsImport]);
+  async function studentAction(action,extra={}) {
+    const c=cloud.current;if(c.busy)return null;
+    c.busy=true;setSyncBusy(true);setSyncMessage('保存中…');
+    const body={action,...extra,requestId:crypto.randomUUID()};
+    c.pending=body;
+    try {
+      let result;
+      try {result=await api(body);} catch(e) {if(e.status)throw e;result=await api(body);}
+      c.pending=null;applyCloud(result);return result;
+    } catch(e){if(e.status&&e.status<500)c.pending=null;setSaveError(true);setSyncMessage(e.message+' 操作結果を確認するには再試行してください。');window.alert(e.message);return null;}
+    finally{c.busy=false;setSyncBusy(false);}
+  }
+  async function initializeCloud(fromLocal) {
+    if(cloud.current.busy)return;
+    let data={missions:initialMissions,draws:[],students:[],rankPrizes:initialRankPrizes,milestonePrizes:initialMilestonePrizes,deliveries:{},hiddenMissions:initialHiddenMissions,testMissions:initialTestMissions,achievements:[],prizeSuggestions:[],lastPromotionYear:null,dailyPullLimit:0};
+    if(fromLocal){
+      try {const raw=localStorage.getItem(STORAGE_KEY);if(!raw)throw Error('このブラウザには引き継ぐデータがありません。以前使っていたブラウザで開いてください。');
+        data={...data,...JSON.parse(raw)};
+        if(!window.confirm('このブラウザの生徒 '+data.students.length+' 人・ミッション履歴 '+data.draws.length+' 件を共有します。よろしいですか？'))return;
+        localStorage.setItem(STORAGE_KEY+':before-cloud',raw);
+      }catch(e){setSyncMessage(e.message);return;}
+    }else if(!window.confirm('生徒が未登録の状態で共有を開始します。以前のデータがある場合はキャンセルして、そのブラウザから引き継いでください。'))return;
+    cloud.current.busy=true;setSyncBusy(true);
+    try{applyCloud(await api({action:'initialize',requestId:crypto.randomUUID(),data}));}
+    catch(e){setSyncMessage(e.message);}
+    finally{cloud.current.busy=false;setSyncBusy(false);}
+  }
   const studentName = id => students.find(s => s.id === id)?.name || "不明";
-  function handleLogin() {
-    const number = loginNumber.trim();
-    if (!number) {
-      setLoginError("生徒番号を入力してください");
-      return;
-    }
-    const student = students.find(s => s.number === number);
-    if (!student) {
-      setLoginError("その生徒番号は登録されていません");
-      return;
-    }
-    setCurrentStudentId(student.id);
-    setRole("student");
-    setLoginError("");
-    setLoginNumber("");
-    setStudentTab("mission");
-    setGachaResult(null);
-    setGachaPhase("idle");
+  async function handleLogin() {
+    if(cloud.current.busy)return;
+    cloud.current.busy=true;
+    try {
+      const result=await api({action:'login',role:'student',number:loginNumber.trim()},null);
+      cloud.current.token=result.token;cloud.current.generation++;
+      applyCloud(result);setCurrentStudentId(result.studentId);setRole('student');
+      setLoginError('');setLoginNumber('');setStudentTab('mission');setGachaResult(null);setGachaPhase('idle');
+    }catch(e){setLoginError(e.message);}finally{cloud.current.busy=false;}
   }
   function openAdminLogin() {
     setShowAdminLogin(true);
@@ -847,21 +823,23 @@ function GachaMissionApp() {
     if (adminLoginBusy.current) return;
     adminLoginBusy.current = true;
     try {
-      if (!adminPasswordInput || (await deriveAdminPassword(adminPasswordInput, ADMIN_PASSWORD_SALT)) !== ADMIN_PASSWORD_HASH) {
-        setAdminLoginError("パスワードが違います");
-        return;
-      }
+      const result=await api({action:'login',role:'admin',password:adminPasswordInput},null);
+      cloud.current.token=result.token;cloud.current.generation++;
+      applyCloud(result);
       setRole("admin");
       setAdminPasswordInput("");
       setAdminLoginError("");
       setShowAdminLogin(false);
-    } catch {
-      setAdminLoginError("パスワードを確認できません。HTTPSで開き直してください。");
+    } catch(e) {
+      setAdminLoginError(e.message);
     } finally {
       adminLoginBusy.current = false;
     }
   }
   function handleLogout() {
+    const c=cloud.current;
+    if(c.busy||c.pending||(c.baseline&&JSON.stringify(latest.current)!==c.baseline)){window.alert('変更の保存が終わってからログアウトしてください。');return;}
+    api({action:'logout'}).catch(()=>{});c.token=null;c.baseline=null;c.generation++;setLoaded(false);
     setRole(null);
     setCurrentStudentId(null);
     setGachaResult(null);
@@ -870,40 +848,16 @@ function GachaMissionApp() {
     setAdminPasswordInput("");
     setAdminLoginError("");
   }
-  function pullGacha() {
-    const currentStudent = students.find(s => s.id === currentStudentId);
-    const eligibleMissions = missions.filter(m => isMissionEligible(m, currentStudent ? currentStudent.grade : null));
-    if (eligibleMissions.length === 0) return;
-    if (gachaPhase !== "idle" && gachaPhase !== "done") return;
-    if (dailyPullLimit > 0) {
-      const todayCount = draws.filter(d => d.studentId === currentStudentId && d.drawnAt === todayStr() && !d.issuedByAdmin && !d.hidden).length;
-      if (todayCount >= dailyPullLimit) return;
-    }
-    const mission = eligibleMissions[Math.floor(Math.random() * eligibleMissions.length)];
-    const drawnAt = todayStr();
-    const draw = {
-      id: uid("d"),
-      studentId: currentStudentId,
-      missionId: mission.id,
-      missionText: mission.text,
-      status: "進行中",
-      color: randomCapsuleColor(),
-      drawnAt,
-      deadline: mission.deadlineDays ? addDays(drawnAt, mission.deadlineDays) : null,
-      approvedAt: null
-    };
-    setDraws([...draws, draw]);
+  async function pullGacha() {
+    if(gachaPhase!=='idle'&&gachaPhase!=='done')return;
+    const result=await studentAction('draw');if(!result)return;
+    const draw=result.result;
     setGachaResult(draw);
     setGachaPhase("shaking");
     gachaTimeouts.current.forEach(t => clearTimeout(t));
     gachaTimeouts.current = [setTimeout(() => setGachaPhase("dropping"), 550), setTimeout(() => setGachaPhase("cracking"), 550 + 550), setTimeout(() => setGachaPhase("done"), 550 + 550 + 400)];
   }
-  function reportDone(drawId) {
-    setDraws(draws.map(d => d.id === drawId && d.status !== "取消済み" ? {
-      ...d,
-      status: "承認待ち"
-    } : d));
-  }
+  function reportDone(drawId) {studentAction('report',{id:drawId});}
   function approveDraw(drawId) {
     setDraws(draws.map(d => d.id === drawId && d.status !== "取消済み" ? {
       ...d,
@@ -1132,25 +1086,10 @@ function GachaMissionApp() {
   function removeTestMission(id) {
     setTestMissions(testMissions.filter(t => t.id !== id));
   }
-  function closeAchievementPopup(id) {
-    setAchievements(achievements.map(a => a.id === id ? {
-      ...a,
-      seen: true
-    } : a));
-  }
-  function submitPrizeSuggestion() {
-    const text = newSuggestionText.trim();
-    if (!text || !currentStudentId) return;
-    setPrizeSuggestions([...prizeSuggestions, {
-      id: uid("sug"),
-      studentId: currentStudentId,
-      text,
-      status: "検討中",
-      createdAt: todayStr(),
-      createdAtMs: Date.now(),
-      resolvedAt: null
-    }]);
-    setNewSuggestionText("");
+  function closeAchievementPopup(id) {studentAction('seen',{id});}
+  async function submitPrizeSuggestion() {
+    if(!newSuggestionText.trim())return;
+    if(await studentAction('suggest',{text:newSuggestionText.trim()}))setNewSuggestionText('');
   }
   function startConvert(id, mode) {
     setConvertState({
@@ -1260,6 +1199,13 @@ function GachaMissionApp() {
       isMobile: isMobile
     }));
   }
+  if(needsImport) return React.createElement('div',{style:{maxWidth:600,margin:'60px auto',padding:24,fontFamily:'sans-serif'}},
+    React.createElement('h2',null,'端末間のデータ共有を始める'),
+    React.createElement('p',null,'これまで使っていた端末・ブラウザで開き、「このブラウザのデータを引き継ぐ」を押してください。引き継ぎは最初の1回だけです。元のデータはこのブラウザにも残ります。'),
+    React.createElement('button',{disabled:syncBusy,onClick:()=>initializeCloud(true),style:styles.loginBtn},'このブラウザのデータを引き継ぐ'),
+    React.createElement('button',{disabled:syncBusy,onClick:()=>initializeCloud(false),style:{marginTop:20}},'データがない場合：新しく始める'),
+    React.createElement('p',{role:'status'},syncMessage),
+    React.createElement('button',{disabled:syncBusy,onClick:handleLogout},'ログアウト'));
   return /*#__PURE__*/React.createElement("div", {
     style: styles.app
   }, /*#__PURE__*/React.createElement("style", null, css), role === "student" && myUnseenAchievement && /*#__PURE__*/React.createElement(AchievementPopup, {
@@ -1288,8 +1234,9 @@ function GachaMissionApp() {
   }, "\u7BA1\u7406\u8005"), /*#__PURE__*/React.createElement("button", {
     style: styles.logoutBtn,
     onClick: handleLogout
-  }, "\u30ED\u30B0\u30A2\u30A6\u30C8"))), /*#__PURE__*/React.createElement("div", {
+  }, "\u30ED\u30B0\u30A2\u30A6\u30C8"))), /*#__PURE__*/React.createElement("fieldset", { disabled: syncBusy || !!cloud.current.pending,
     style: {
+      border:0,minWidth:0,
       ...styles.main,
       padding: isMobile ? "14px 14px" : "22px 26px"
     }
@@ -1451,7 +1398,9 @@ function GachaMissionApp() {
     isMobile: isMobile
   })), /*#__PURE__*/React.createElement("div", {
     style: styles.footer
-  }, saveError ? /*#__PURE__*/React.createElement("span", null, "\u3053\u306E\u7AEF\u672B\u3067\u306F\u4FDD\u5B58\u3067\u304D\u3066\u3044\u307E\u305B\u3093(\u8868\u793A\u306E\u307F)") : /*#__PURE__*/React.createElement("span", null, "\u5909\u66F4\u306F\u81EA\u52D5\u7684\u306B\u4FDD\u5B58\u3055\u308C\u307E\u3059")));
+  }, React.createElement('span',{role:'status',style:{color:saveError?'#b91c1c':undefined}},syncMessage),
+     saveError && React.createElement('button',{disabled:syncBusy,onClick:()=>cloud.current.pending?saveCloud():refreshCloud(),style:{marginLeft:12}},'再試行')));
+
 }
 function LoginScreen({
   loginNumber,
