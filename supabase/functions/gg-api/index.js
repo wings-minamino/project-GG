@@ -1,4 +1,4 @@
-import {deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
+import {computeEarnedPrizes, deliveryKey, deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
 
 // Bearer-token authentication, no ambient cookies: also supports VS Code Live Server.
 const headers = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type, authorization','Access-Control-Allow-Methods':'POST, OPTIONS','Content-Type':'application/json','Cache-Control':'no-store'};
@@ -46,6 +46,7 @@ function view(row,session) {
   d.prizeSuggestions=d.prizeSuggestions.filter(x=>x.studentId===id && Date.now()-(x.createdAtMs||Date.parse(x.createdAt))<7*86400000).map(({id,studentId,text,createdAt,createdAtMs})=>({id,studentId,text,createdAt,createdAtMs}));
   d.achievements=d.achievements.filter(x=>x.studentId===id);
   d.deliveries=Object.fromEntries(Object.entries(d.deliveries).filter(([key])=>key.startsWith(id+'|')));
+  d.prizeClaims=Object.fromEntries(Object.entries(d.prizeClaims||{}).filter(([,claim])=>claim.studentId===id));
   d.hiddenMissions=[]; d.testMissions=[];
   return {version:row.version,data:d};
 }
@@ -90,7 +91,7 @@ export async function handler(req) {
         if(b.action==='save'&&(!data||b.version!==row.version)) fail(409,'別の端末で更新されました。最新情報を確認してもう一度操作してください。');
         validate(b.data);
         // This collection is managed by explicit actions; older clients must not erase it.
-        data=derived({...b.data,missionSuggestions:data?.missionSuggestions||[]});
+        data=derived({...b.data,missionSuggestions:data?.missionSuggestions||[],prizeClaims:data?.prizeClaims||{}});
       } else if(b.action==='review_mission') {
         if(session.role!=='admin') fail(403,'管理者のみ操作できます');
         const proposal=data?.missionSuggestions?.find(x=>x.id===b.id);
@@ -125,6 +126,17 @@ export async function handler(req) {
           const d=data.draws.find(d=>d.id===b.id&&d.studentId===id);
           if(!d||d.status!=='進行中') fail(409,'ミッションの状態が変わりました');
           d.status='承認待ち';
+        } else if(b.action==='claim_prize') {
+          if(typeof b.month!=='string'||!/^\d{4}-(0[1-9]|1[0-2])$/.test(b.month)||b.month>todayStr().slice(0,7)) fail(400,'対象月を確認してください');
+          if(!['rank','milestone'].includes(b.type)||typeof b.ref!=='string') fail(400,'景品を選んでください');
+          const key=deliveryKey(id,b.month,b.type,b.ref);
+          data.prizeClaims=data.prizeClaims||{};
+          if(data.deliveries[key]) fail(409,'この景品は受け取り済みです');
+          if(!data.prizeClaims[key]) {
+            const earned=computeEarnedPrizes(data.draws,data.students,data.rankPrizes,data.milestonePrizes,b.month).find(e=>e.studentId===id&&e.type===b.type&&e.ref===b.ref);
+            if(!earned) fail(403,'まだこの景品の条件を達成していません');
+            data.prizeClaims[key]={...earned,month:b.month,requestedAt:new Date().toISOString()};
+          }
         } else if(b.action==='suggest_mission') {
           if(typeof b.text!=='string'||!b.text.trim()||b.text.length>500) fail(400,'ミッション案は1〜500文字で入力してください');
           data.missionSuggestions=data.missionSuggestions||[];
