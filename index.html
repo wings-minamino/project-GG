@@ -726,7 +726,7 @@ function GachaMissionApp() {
       const result=await api({action:'get'},saved.token);
       cloud.current.token=saved.token;cloud.current.generation++;
       applyCloud(result);setCurrentStudentId(saved.studentId||null);setRole(saved.role);
-      if(['mission','prize','proposals'].includes(saved.studentTab))setStudentTab(saved.studentTab);
+      if(['mission','prize','proposals'].includes(saved.studentTab))setStudentTab(saved.studentTab==='proposals'?'mission':saved.studentTab);
       if(typeof saved.adminTab==='string')setAdminTab(saved.adminTab);
       setRestoringSession(false);
     } catch(e) {
@@ -1296,7 +1296,7 @@ function GachaMissionApp() {
   }, "\u30DF\u30C3\u30B7\u30E7\u30F3"), /*#__PURE__*/React.createElement("button", {
     style: studentTab === "prize" ? styles.subTabActive : styles.subTab,
     onClick: () => setStudentTab("prize")
-  }, "\u666F\u54C1"), React.createElement('button',{style:studentTab==='proposals'?styles.subTabActive:styles.subTab,onClick:()=>setStudentTab('proposals')},'ミッション案')), studentTab==='proposals' ? React.createElement(MissionProposalPanel,{admin:false,proposals:missionSuggestions.filter(x=>x.studentId===currentStudentId),onAction:studentAction}) : studentTab === "mission" ? /*#__PURE__*/React.createElement(StudentMissionView, {
+  }, "\u666F\u54C1")), studentTab === "mission" ? React.createElement('div',null, /*#__PURE__*/React.createElement(StudentMissionView, {
     studentName: studentName(currentStudentId),
     missionsAvailable: myEligibleMissionCount,
     dailyPullLimit: dailyPullLimit,
@@ -1312,7 +1312,7 @@ function GachaMissionApp() {
     milestonePrizes: milestonePrizes,
     myAchievements: myAchievements,
     isMobile: isMobile
-  }) : /*#__PURE__*/React.createElement(StudentPrizeView, {
+  }), React.createElement('div',{style:{marginTop:24}},React.createElement(MissionProposalPanel,{admin:false,proposals:missionSuggestions.filter(x=>x.studentId===currentStudentId),onAction:studentAction}))) : /*#__PURE__*/React.createElement(StudentPrizeView, {
     studentMonth: studentMonth,
     setStudentMonth: setStudentMonth,
     myStampsThisMonth: myStampsThisMonth,
@@ -1468,7 +1468,7 @@ function MissionProposalPanel({admin,proposals,onAction}) {
     React.createElement('p',null,admin?'採用時に内容・期限・対象を確認すると、ガチャのミッションに登録されます。':'やってみたいチャレンジを先生に提案できます。'),
     !admin&&React.createElement('form',{onSubmit:send},
       React.createElement('label',{htmlFor:'mission-proposal-text'},'ミッション案'),
-      React.createElement('textarea',{id:'mission-proposal-text',value:text,maxLength:500,required:true,rows:3,onChange:e=>setText(e.target.value),placeholder:'例：1週間、毎日英単語を10個覚える',style:{...styles.input,width:'100%',boxSizing:'border-box',display:'block',margin:'10px 0'}}),
+      React.createElement('textarea',{id:'mission-proposal-text',value:text,maxLength:500,required:true,rows:3,onChange:e=>setText(e.target.value),placeholder:'例：eトレを１回分やる、aim@を１回分やる など',style:{...styles.input,width:'100%',boxSizing:'border-box',display:'block',margin:'10px 0'}}),
       React.createElement('button',{type:'submit',disabled:sending||!text.trim(),style:styles.loginBtn},sending?'送信中…':'先生に送る'),
       React.createElement('p',{role:'status'},message)),
     React.createElement('h4',null,admin?'届いた案・確認履歴':'自分が送った案'),
