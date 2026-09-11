@@ -102,6 +102,12 @@ export async function handler(req) {
           if(![null,'elementary','juniorHigh','highSchool'].includes(b.targetGroup)) fail(400,'対象学年を選んでください');
           const mission={id:uid(),text:b.text.trim(),deadlineDays:b.deadlineDays,targetGroup:b.targetGroup,proposalId:proposal.id};
           data.missions.push(mission);proposal.missionId=mission.id;proposal.adoptedText=mission.text;
+          const rewardId=uid(),date=todayStr();
+          data.draws.push({id:rewardId,studentId:proposal.studentId,missionId:mission.id,
+            missionText:'[ミッション案採用] '+proposal.text,status:'承認済み',
+            color:'#E8A93B',drawnAt:date,approvedAt:date,value:1,hidden:true,
+            proposalReward:true,proposalId:proposal.id});
+          proposal.rewardDrawId=rewardId;proposal.stampReward=1;
         }
         proposal.status=b.decision==='accept'?'採用':'見送り';proposal.resolvedAt=todayStr();
       } else {
