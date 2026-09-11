@@ -39,7 +39,7 @@ function uid(prefix) {
   return prefix + Math.random().toString(36).slice(2, 9);
 }
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return new Date(Date.now()+9*3600000).toISOString().slice(0, 10);
 }
 function addDays(dateStr, days) {
   const d = new Date(dateStr);
