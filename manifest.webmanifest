@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "プロジェクトGG",
+  "short_name": "プロジェクトGG",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#faf8f5",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "icons/project-gg.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
