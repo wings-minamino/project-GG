@@ -1911,7 +1911,7 @@ function StudentPrizeView({
   const sortedMilestones = useMemo(() => [...milestonePrizes].sort((a, b) => a.threshold - b.threshold), [milestonePrizes]);
   return React.createElement("div", null,
     React.createElement('p',{style:{fontSize:13,lineHeight:1.7}},'ランキング景品は前月分を今月の画面から申請できます（例：9月分は10月に表示）。スタンプ景品は翌月10日まで申請でき、11日から未申請の景品は表示されません。申請済みの景品は残ります。'),
-    React.createElement('button',{style:styles.navBtn,onClick:()=>setStudentMonth(currentMonthKey())},'今月の申請欄を表示'), /*#__PURE__*/React.createElement("div", {
+    React.createElement('button',{style:{...styles.navBtn,width:'auto',height:'auto',padding:'8px 14px',borderRadius:8,whiteSpace:'nowrap',writingMode:'horizontal-tb',lineHeight:1.5},onClick:()=>setStudentMonth(currentMonthKey())},'今月の申請欄を表示'), /*#__PURE__*/React.createElement("div", {
     style: styles.sectionHead
   }, /*#__PURE__*/React.createElement("h3", {
     style: styles.sectionTitle
