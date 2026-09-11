@@ -747,6 +747,12 @@ function GachaMissionApp() {
   const snapshot = {missions, draws, students, rankPrizes, milestonePrizes, deliveries, hiddenMissions, testMissions, achievements, prizeSuggestions, missionSuggestions, lastPromotionYear, dailyPullLimit};
   latest.current = snapshot;
   const snapshotText = JSON.stringify(snapshot);
+  const composingInput = useRef(false);
+  function isEditingInput() {
+    const element=document.activeElement;
+    return composingInput.current || !!(element &&
+      (element.matches('input, textarea, select') || element.isContentEditable));
+  }
   async function api(body,token=cloud.current.token) {
     const r=await fetch('https://phswoncmibtmihpmlvdg.supabase.co/functions/v1/gg-api',{
       method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},
@@ -782,25 +788,40 @@ function GachaMissionApp() {
   }
   async function refreshCloud() {
     const c=cloud.current,g=c.generation;
-    if(!c.token||c.busy||c.pending|| (c.baseline&&JSON.stringify(latest.current)!==c.baseline)) return;
+    if(isEditingInput()||!c.token||c.busy||c.pending|| (c.baseline&&JSON.stringify(latest.current)!==c.baseline)) return;
     try {
       const result=await api({action:'get',version:c.version});
-      if(g!==c.generation||c.busy||c.pending||(c.baseline&&JSON.stringify(latest.current)!==c.baseline))return;
+      if(isEditingInput()||g!==c.generation||c.busy||c.pending||(c.baseline&&JSON.stringify(latest.current)!==c.baseline))return;
       applyCloud(result);setSaveError(false);
       setSyncMessage('同期済み · 他の端末の変更を5秒ごとに確認');
     } catch(e) {if(g===c.generation){setSaveError(true);setSyncMessage(e.message+'（再接続を待っています）');}}
   }
   useEffect(()=>{
     const t=setInterval(()=>{if(!document.hidden)refreshCloud();},5000);
+    let resumeTimer;
+    const resume=()=>{
+      clearTimeout(resumeTimer);
+      resumeTimer=setTimeout(()=>{
+        if(isEditingInput())return;
+        const c=cloud.current;
+        if(c.baseline&&JSON.stringify(latest.current)!==c.baseline&&!c.pending)saveCloud();
+        else refreshCloud();
+      },300);
+    };
+    const compositionStart=()=>{composingInput.current=true;};
+    const compositionEnd=()=>{composingInput.current=false;resume();};
+    document.addEventListener('focusout',resume);
+    document.addEventListener('compositionstart',compositionStart);
+    document.addEventListener('compositionend',compositionEnd);
     const focus=()=>refreshCloud();
     const leave=e=>{const c=cloud.current;if(c.pending||(c.baseline&&JSON.stringify(latest.current)!==c.baseline)){e.preventDefault();e.returnValue='';}};
     window.addEventListener('focus',focus);document.addEventListener('visibilitychange',focus);
     window.addEventListener('beforeunload',leave);
-    return ()=>{clearInterval(t);window.removeEventListener('focus',focus);document.removeEventListener('visibilitychange',focus);window.removeEventListener('beforeunload',leave);};
+    return ()=>{clearInterval(t);clearTimeout(resumeTimer);document.removeEventListener('focusout',resume);document.removeEventListener('compositionstart',compositionStart);document.removeEventListener('compositionend',compositionEnd);window.removeEventListener('focus',focus);document.removeEventListener('visibilitychange',focus);window.removeEventListener('beforeunload',leave);};
   },[]);
   async function saveCloud() {
     const c=cloud.current;
-    if(c.busy||!c.token||!c.baseline)return;
+    if(isEditingInput()||c.busy||!c.token||!c.baseline)return;
     if(!c.pending&&JSON.stringify(latest.current)===c.baseline)return;
     c.pending=c.pending||{action:'save',version:c.version,requestId:crypto.randomUUID(),data:latest.current};
     c.busy=true;setSyncBusy(true);setSyncMessage('保存中…');
