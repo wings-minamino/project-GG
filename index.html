@@ -615,6 +615,7 @@ function GachaMissionApp() {
   const [testMissions, setTestMissions] = useState(initialTestMissions);
   const [achievements, setAchievements] = useState([]);
   const [prizeSuggestions, setPrizeSuggestions] = useState([]);
+  const [missionSuggestions,setMissionSuggestions] = useState([]);
   const [role, setRole] = useState(null); // null | 'student' | 'admin'
   const [currentStudentId, setCurrentStudentId] = useState(null);
   const [loginNumber, setLoginNumber] = useState("");
@@ -725,7 +726,7 @@ function GachaMissionApp() {
       const result=await api({action:'get'},saved.token);
       cloud.current.token=saved.token;cloud.current.generation++;
       applyCloud(result);setCurrentStudentId(saved.studentId||null);setRole(saved.role);
-      if(['mission','prize'].includes(saved.studentTab))setStudentTab(saved.studentTab);
+      if(['mission','prize','proposals'].includes(saved.studentTab))setStudentTab(saved.studentTab);
       if(typeof saved.adminTab==='string')setAdminTab(saved.adminTab);
       setRestoringSession(false);
     } catch(e) {
@@ -738,7 +739,7 @@ function GachaMissionApp() {
     if(!role||!cloud.current.token)return;
     try {sessionStorage.setItem(sessionKey,JSON.stringify({token:cloud.current.token,role,studentId:currentStudentId,studentTab,adminTab}));} catch {}
   },[role,currentStudentId,studentTab,adminTab]);
-  const snapshot = {missions, draws, students, rankPrizes, milestonePrizes, deliveries, hiddenMissions, testMissions, achievements, prizeSuggestions, lastPromotionYear, dailyPullLimit};
+  const snapshot = {missions, draws, students, rankPrizes, milestonePrizes, deliveries, hiddenMissions, testMissions, achievements, prizeSuggestions, missionSuggestions, lastPromotionYear, dailyPullLimit};
   latest.current = snapshot;
   const snapshotText = JSON.stringify(snapshot);
   async function api(body,token=cloud.current.token) {
@@ -766,6 +767,7 @@ function GachaMissionApp() {
     next.testMissions=data.testMissions; setTestMissions(data.testMissions);
     next.achievements=data.achievements; setAchievements(data.achievements);
     next.prizeSuggestions=data.prizeSuggestions; setPrizeSuggestions(data.prizeSuggestions);
+    next.missionSuggestions=data.missionSuggestions||[]; setMissionSuggestions(next.missionSuggestions);
     next.lastPromotionYear=data.lastPromotionYear; setLastPromotionYear(data.lastPromotionYear);
     next.dailyPullLimit=data.dailyPullLimit; setDailyPullLimit(data.dailyPullLimit);
     cloud.current.baseline=JSON.stringify(next);
@@ -808,7 +810,10 @@ function GachaMissionApp() {
     const timer=setTimeout(saveCloud,400);return ()=>clearTimeout(timer);
   },[snapshotText,role,needsImport]);
   async function studentAction(action,extra={}) {
-    const c=cloud.current;if(c.busy)return null;
+    const c=cloud.current;if(c.busy||c.pending)return null;
+    if(role==='admin'&&c.baseline&&JSON.stringify(latest.current)!==c.baseline){
+      await saveCloud();if(c.pending||JSON.stringify(latest.current)!==c.baseline)return null;
+    }
     c.busy=true;setSyncBusy(true);setSyncMessage('保存中…');
     const body={action,...extra,requestId:crypto.randomUUID()};
     c.pending=body;
@@ -1291,7 +1296,7 @@ function GachaMissionApp() {
   }, "\u30DF\u30C3\u30B7\u30E7\u30F3"), /*#__PURE__*/React.createElement("button", {
     style: studentTab === "prize" ? styles.subTabActive : styles.subTab,
     onClick: () => setStudentTab("prize")
-  }, "\u666F\u54C1")), studentTab === "mission" ? /*#__PURE__*/React.createElement(StudentMissionView, {
+  }, "\u666F\u54C1"), React.createElement('button',{style:studentTab==='proposals'?styles.subTabActive:styles.subTab,onClick:()=>setStudentTab('proposals')},'ミッション案')), studentTab==='proposals' ? React.createElement(MissionProposalPanel,{admin:false,proposals:missionSuggestions.filter(x=>x.studentId===currentStudentId),onAction:studentAction}) : studentTab === "mission" ? /*#__PURE__*/React.createElement(StudentMissionView, {
     studentName: studentName(currentStudentId),
     missionsAvailable: myEligibleMissionCount,
     dailyPullLimit: dailyPullLimit,
@@ -1322,6 +1327,8 @@ function GachaMissionApp() {
     mySuggestions: mySuggestions,
     isMobile: isMobile
   })) : /*#__PURE__*/React.createElement(AdminView, {
+    missionProposalPanel:React.createElement(MissionProposalPanel,{admin:true,proposals:missionSuggestions,onAction:studentAction}),
+    missionProposalCount:missionSuggestions.filter(x=>x.status==='検討中').length,
     adminTab: adminTab,
     setAdminTab: setAdminTab,
     missions: missions,
@@ -1444,6 +1451,59 @@ function GachaMissionApp() {
   }, React.createElement('span',{role:'status',style:{color:saveError?'#b91c1c':undefined}},syncMessage),
      saveError && React.createElement('button',{disabled:syncBusy,onClick:()=>cloud.current.pending?saveCloud():refreshCloud(),style:{marginLeft:12}},'再試行')));
 
+}
+function MissionProposalPanel({admin,proposals,onAction}) {
+  const [text,setText]=useState('');
+  const [message,setMessage]=useState('');
+  const [sending,setSending]=useState(false);
+  async function send(e){
+    e.preventDefault();if(sending||!text.trim())return;
+    setSending(true);setMessage('');
+    try{if(await onAction('suggest_mission',{text:text.trim()})){setText('');setMessage('ミッション案を送りました！');}}
+    finally{setSending(false);}
+  }
+  const sorted=[...proposals].sort((a,b)=>(a.status==='検討中'?0:1)-(b.status==='検討中'?0:1)||(b.createdAtMs||0)-(a.createdAtMs||0));
+  return React.createElement('section',{style:styles.card},
+    React.createElement('h3',null,admin?'生徒から届いたミッション案':'ミッション案を送ろう'),
+    React.createElement('p',null,admin?'採用時に内容・期限・対象を確認すると、ガチャのミッションに登録されます。':'やってみたいチャレンジを先生に提案できます。'),
+    !admin&&React.createElement('form',{onSubmit:send},
+      React.createElement('label',{htmlFor:'mission-proposal-text'},'ミッション案'),
+      React.createElement('textarea',{id:'mission-proposal-text',value:text,maxLength:500,required:true,rows:3,onChange:e=>setText(e.target.value),placeholder:'例：1週間、毎日英単語を10個覚える',style:{...styles.input,width:'100%',boxSizing:'border-box',display:'block',margin:'10px 0'}}),
+      React.createElement('button',{type:'submit',disabled:sending||!text.trim(),style:styles.loginBtn},sending?'送信中…':'先生に送る'),
+      React.createElement('p',{role:'status'},message)),
+    React.createElement('h4',null,admin?'届いた案・確認履歴':'自分が送った案'),
+    sorted.length===0?React.createElement('p',null,'まだミッション案はありません。'):sorted.map(p=>React.createElement(MissionProposalCard,{key:p.id,proposal:p,admin,onAction})));
+}
+function MissionProposalCard({proposal:p,admin,onAction}) {
+  const [editing,setEditing]=useState(false);
+  const [text,setText]=useState(p.text);
+  const [days,setDays]=useState('3');
+  const [target,setTarget]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  async function review(decision){
+    if(busy)return;
+    if(decision==='accept'&&(!text.trim()||!Number.isInteger(Number(days))||Number(days)<1||Number(days)>365)){setError('内容と期限（1〜365日）を確認してください。');return;}
+    if(decision==='reject'&&!window.confirm('このミッション案を見送りますか？'))return;
+    setBusy(true);setError('');
+    try{if(await onAction('review_mission',{id:p.id,decision,text:text.trim(),deadlineDays:Number(days),targetGroup:target||null}))setEditing(false);}
+    finally{setBusy(false);}
+  }
+  return React.createElement('article',{style:{border:'1px solid #e5ded8',borderRadius:12,padding:16,marginBottom:12}},
+    React.createElement('div',{style:{fontSize:13,color:'#666'}},admin?(p.studentName||'生徒')+' · '+p.createdAt:p.createdAt),
+    React.createElement('p',{style:{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}},p.text),
+    React.createElement('strong',null,p.status),
+    p.resolvedAt&&React.createElement('span',{style:{marginLeft:12,fontSize:13}},p.resolvedAt),
+    p.adoptedText&&p.adoptedText!==p.text&&React.createElement('p',null,'登録した内容：'+p.adoptedText),
+    admin&&p.status==='検討中'&&React.createElement('div',{style:{marginTop:12}},
+      !editing?React.createElement('button',{onClick:()=>setEditing(true),disabled:busy},'採用内容を確認'):React.createElement('div',null,
+        React.createElement('label',null,'登録するミッション',React.createElement('textarea',{value:text,onChange:e=>setText(e.target.value),maxLength:500,rows:3,style:{...styles.input,width:'100%',boxSizing:'border-box'}})),
+        React.createElement('label',null,'期限（日）',React.createElement('input',{type:'number',min:1,max:365,step:1,value:days,onChange:e=>setDays(e.target.value),style:{...styles.input,width:85,margin:8}})),
+        React.createElement('label',null,'対象',React.createElement('select',{value:target,onChange:e=>setTarget(e.target.value),style:{...styles.input,margin:8}},
+          React.createElement('option',{value:''},'全員'),Object.entries(GRADE_GROUPS).map(([value,g])=>React.createElement('option',{key:value,value},g.label)))),
+        React.createElement('div',null,React.createElement('button',{onClick:()=>review('accept'),disabled:busy},'採用してミッションに登録'),React.createElement('button',{onClick:()=>setEditing(false),disabled:busy,style:{marginLeft:8}},'戻る'))),
+      React.createElement('button',{onClick:()=>review('reject'),disabled:busy,style:{marginLeft:8,marginTop:8}},'見送る'),
+      error&&React.createElement('p',{role:'alert'},error)));
 }
 function LoginScreen({
   loginNumber,
@@ -1999,7 +2059,7 @@ function AdminView(props) {
   }, "\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u9001\u308B"), /*#__PURE__*/React.createElement("button", {
     style: adminTab === "ranking" ? styles.tabActive : styles.tab,
     onClick: () => setAdminTab("ranking")
-  }, "\u6708\u9593\u30E9\u30F3\u30AD\u30F3\u30B0")), adminTab === "approve" && /*#__PURE__*/React.createElement("div", null, pendingApprovals.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, "\u6708\u9593\u30E9\u30F3\u30AD\u30F3\u30B0"), React.createElement('button',{style:adminTab==='proposals'?styles.tabActive:styles.tab,onClick:()=>setAdminTab('proposals')},'生徒のミッション案',props.missionProposalCount>0&&React.createElement('span',{style:styles.tabBadge},props.missionProposalCount))), adminTab==='proposals'&&props.missionProposalPanel, adminTab === "approve" && /*#__PURE__*/React.createElement("div", null, pendingApprovals.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: styles.emptyBox
   }, "\u627F\u8A8D\u5F85\u3061\u306E\u30DF\u30C3\u30B7\u30E7\u30F3\u306F\u3042\u308A\u307E\u305B\u3093") : /*#__PURE__*/React.createElement("div", {
     style: styles.approveList
