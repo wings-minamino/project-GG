@@ -38,6 +38,7 @@ function view(row,session) {
   if(!row.data) return {version:row.version,data:null};
   if(session.role==='admin') return {version:row.version,data:row.data};
   const d=structuredClone(row.data),id=session.student_id;
+  d.missionSuggestions=(d.missionSuggestions||[]).filter(x=>x.studentId===id);
   if(!d.students.some(s=>s.id===id)) fail(401,'生徒の登録が変更されました。ログインし直してください。');
   d.students=d.students.map(s=>s.id===id?s:{id:s.id,name:s.name,number:'',school:'',grade:''});
   // Ranking needs only other students' approved stamp totals, never their missions or login numbers.
@@ -87,7 +88,22 @@ export async function handler(req) {
         if(session.role!=='admin') fail(403,'管理者のみ操作できます');
         if(b.action==='initialize'&&data) fail(409,'共有データはすでに作成されています');
         if(b.action==='save'&&(!data||b.version!==row.version)) fail(409,'別の端末で更新されました。最新情報を確認してもう一度操作してください。');
-        validate(b.data);data=derived(b.data);
+        validate(b.data);
+        // This collection is managed by explicit actions; older clients must not erase it.
+        data=derived({...b.data,missionSuggestions:data?.missionSuggestions||[]});
+      } else if(b.action==='review_mission') {
+        if(session.role!=='admin') fail(403,'管理者のみ操作できます');
+        const proposal=data?.missionSuggestions?.find(x=>x.id===b.id);
+        if(!proposal||proposal.status!=='検討中') fail(409,'この案はすでに処理済みか、見つかりません');
+        if(!['accept','reject'].includes(b.decision)) fail(400,'採用または見送りを選んでください');
+        if(b.decision==='accept') {
+          if(typeof b.text!=='string'||!b.text.trim()||b.text.length>500) fail(400,'ミッションは1〜500文字で入力してください');
+          if(!Number.isInteger(b.deadlineDays)||b.deadlineDays<1||b.deadlineDays>365) fail(400,'期限は1〜365日で指定してください');
+          if(![null,'elementary','juniorHigh','highSchool'].includes(b.targetGroup)) fail(400,'対象学年を選んでください');
+          const mission={id:uid(),text:b.text.trim(),deadlineDays:b.deadlineDays,targetGroup:b.targetGroup,proposalId:proposal.id};
+          data.missions.push(mission);proposal.missionId=mission.id;proposal.adoptedText=mission.text;
+        }
+        proposal.status=b.decision==='accept'?'採用':'見送り';proposal.resolvedAt=todayStr();
       } else {
         if(!data || session.role!=='student') fail(403,'生徒としてログインしてください');
         const id=session.student_id,student=data.students.find(s=>s.id===id);
@@ -103,6 +119,10 @@ export async function handler(req) {
           const d=data.draws.find(d=>d.id===b.id&&d.studentId===id);
           if(!d||d.status!=='進行中') fail(409,'ミッションの状態が変わりました');
           d.status='承認待ち';
+        } else if(b.action==='suggest_mission') {
+          if(typeof b.text!=='string'||!b.text.trim()||b.text.length>500) fail(400,'ミッション案は1〜500文字で入力してください');
+          data.missionSuggestions=data.missionSuggestions||[];
+          data.missionSuggestions.push({id:uid(),studentId:id,studentName:student.name,text:b.text.trim(),status:'検討中',createdAt:todayStr(),createdAtMs:Date.now(),resolvedAt:null});
         } else if(b.action==='suggest') {
           if(typeof b.text!=='string'||!b.text.trim()||b.text.length>500) fail(400,'景品名は1〜500文字で入力してください');
           data.prizeSuggestions.push({id:uid(),studentId:id,text:b.text.trim(),status:'検討中',createdAt:todayStr(),createdAtMs:Date.now(),resolvedAt:null});
