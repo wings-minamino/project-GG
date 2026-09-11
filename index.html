@@ -1498,7 +1498,7 @@ function MissionProposalPanel({admin,proposals,onAction}) {
   const sorted=[...proposals].sort((a,b)=>(a.status==='検討中'?0:1)-(b.status==='検討中'?0:1)||(b.createdAtMs||0)-(a.createdAtMs||0));
   return React.createElement('section',{style:styles.card},
     React.createElement('h3',null,admin?'生徒から届いたミッション案':'ミッション案を送ろう'),
-    React.createElement('p',null,admin?'採用時に内容・期限・対象を確認すると、ガチャのミッションに登録されます。':'やってみたいチャレンジを先生に提案できます。'),
+    React.createElement('p',null,admin?'採用するとガチャに登録され、提案した生徒に1スタンプが付与されます。内容・期限・対象を確認してください。':'やってみたいチャレンジを先生に提案できます。ミッション案が採用されると1スタンプもらえます！'),
     !admin&&React.createElement('form',{onSubmit:send},
       React.createElement('label',{htmlFor:'mission-proposal-text'},'ミッション案'),
       React.createElement('textarea',{id:'mission-proposal-text',value:text,maxLength:500,required:true,rows:3,onChange:e=>setText(e.target.value),placeholder:'例：eトレを１回分やる、aim@を１回分やる など',style:{...styles.input,width:'100%',boxSizing:'border-box',display:'block',margin:'10px 0'}}),
@@ -1526,6 +1526,7 @@ function MissionProposalCard({proposal:p,admin,onAction}) {
     React.createElement('div',{style:{fontSize:13,color:'#666'}},admin?(p.studentName||'生徒')+' · '+p.createdAt:p.createdAt),
     React.createElement('p',{style:{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}},p.text),
     React.createElement('strong',null,p.status),
+    p.stampReward===1&&React.createElement('span',{style:{marginLeft:12,color:'#a52b2b',fontWeight:700}},'＋1スタンプ付与済み'),
     p.resolvedAt&&React.createElement('span',{style:{marginLeft:12,fontSize:13}},p.resolvedAt),
     p.adoptedText&&p.adoptedText!==p.text&&React.createElement('p',null,'登録した内容：'+p.adoptedText),
     admin&&p.status==='検討中'&&React.createElement('div',{style:{marginTop:12}},
