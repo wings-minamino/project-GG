@@ -1465,6 +1465,30 @@ function studentMonthlyRanking(draws,students,month) {
     return {...student,rank:student.count>0?rank:null};
   });
 }
+function RankingName({name,self=false,maxFontSize=16,style={}}) {
+  const box=useRef(null),label=useRef(null);
+  React.useLayoutEffect(()=>{
+    let active=true;
+    const fit=()=>{
+      if(!active||!box.current||!label.current)return;
+      const available=box.current.clientWidth;
+      if(available<=0)return;
+      label.current.style.fontSize=maxFontSize+'px';
+      const natural=label.current.getBoundingClientRect().width;
+      if(natural>available)label.current.style.fontSize=Math.max(1,Math.floor(maxFontSize*available/natural*10)/10)+'px';
+    };
+    fit();
+    const observer=typeof ResizeObserver!=='undefined'?new ResizeObserver(fit):null;
+    if(observer)observer.observe(box.current);
+    window.addEventListener('resize',fit);
+    if(document.fonts){document.fonts.ready.then(fit);document.fonts.addEventListener('loadingdone',fit);}
+    return ()=>{active=false;observer?.disconnect();window.removeEventListener('resize',fit);document.fonts?.removeEventListener('loadingdone',fit);};
+  },[name,self,maxFontSize]);
+  return React.createElement('span',{style:{flex:1,minWidth:0,display:'flex',alignItems:'baseline',gap:6,fontWeight:self?700:500,...style}},
+    React.createElement('span',{ref:box,title:name,style:{flex:1,minWidth:0,overflow:'hidden',whiteSpace:'nowrap',lineHeight:'24px'}},
+      React.createElement('span',{ref:label,style:{display:'inline-block',whiteSpace:'nowrap',fontSize:maxFontSize}},name)),
+    self&&React.createElement('span',{style:{fontSize:12,color:'#a52b2b',whiteSpace:'nowrap',flexShrink:0}},'あなた'));
+}
 function StudentRankingView({draws,students,currentStudentId,month,isMobile}) {
   const list=useMemo(()=>studentMonthlyRanking(draws,students,month),[draws,students,month]);
   const me=list.find(s=>s.id===currentStudentId);
@@ -1484,7 +1508,7 @@ function StudentRankingView({draws,students,currentStudentId,month,isMobile}) {
         return React.createElement('li',{key:s.id,style:{padding:'14px 12px',marginBottom:8,borderRadius:12,background:self?'#fff0e8':'#f8f7f5',border:self?'1px solid #dcaa91':'1px solid transparent'}},
           React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:10,marginBottom:10}},
             React.createElement('strong',{style:{minWidth:38,color:self?'#a52b2b':'#555'}},s.rank?s.rank+'位':'—'),
-            React.createElement('span',{style:{flex:1,minWidth:0,overflowWrap:'anywhere',fontWeight:self?700:500}},s.name,self&&React.createElement('span',{style:{fontSize:12,marginLeft:6,color:'#a52b2b'}},'あなた')),
+            React.createElement(RankingName,{name:s.name,self}),
             React.createElement('span',{style:{whiteSpace:'nowrap'}},React.createElement('strong',{style:{fontSize:22}},s.count),React.createElement('span',{style:{fontSize:12,marginLeft:4}},'個'))),
           React.createElement('div',{'aria-hidden':true,style:{height:12,borderRadius:6,background:'#e7e3df',overflow:'hidden'}},React.createElement('div',{style:{height:'100%',width:(s.count/maxCount*100)+'%',borderRadius:6,background:self?'#c13d35':'#c89662',transition:'width 300ms ease'}})));
       })),
@@ -2769,9 +2793,7 @@ function AdminView(props) {
       ...styles.rankNum,
       ...(i < 3 ? styles.rankNumTop : {})
     }
-  }, i + 1), /*#__PURE__*/React.createElement("div", {
-    style: styles.rankName
-  }, r.name), /*#__PURE__*/React.createElement("div", {
+  }, i + 1), React.createElement(RankingName,{name:r.name,maxFontSize:13.5,style:{...styles.rankName,flex:'0 0 70px'}}), /*#__PURE__*/React.createElement("div", {
     style: styles.rankBarTrack
   }, /*#__PURE__*/React.createElement("div", {
     style: {
