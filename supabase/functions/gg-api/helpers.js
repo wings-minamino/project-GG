@@ -182,4 +182,4 @@ function computeEarnedPrizes(draws, students, rankPrizes, milestonePrizes, month
 function deliveryKey(studentId, month, type, ref) {
   return `${studentId}|${month}|${type}|${ref}`;
 }
-export { deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade };
+export { computeEarnedPrizes, deliveryKey, deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade };
