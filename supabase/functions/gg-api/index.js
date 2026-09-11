@@ -11,6 +11,32 @@ async function db(path,method='GET',body) {
 }
 async function hash(s) {return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s))),b=>b.toString(16).padStart(2,'0')).join('');}
 const uid=()=>crypto.randomUUID();
+function rewardMonth() {return new Date(Date.now()+9*3600000).toISOString().slice(0,7);}
+function closeRankMonths(data,month=rewardMonth()) {
+  data.rankPrizeHistory=data.rankPrizeHistory||{};
+  data.rankPrizeMonth=data.rankPrizeMonth||month;
+  while(data.rankPrizeMonth<month) {
+    const old=data.rankPrizeMonth,prizes=structuredClone(data.rankPrizes);
+    if(!data.rankPrizeHistory[old])data.rankPrizeHistory[old]={
+      prizes,earned:computeEarnedPrizes(data.draws,data.students,prizes,[],old),
+      finalizedAt:new Date().toISOString()
+    };
+    const [y,m]=old.split('-').map(Number);
+    data.rankPrizeMonth=m===12?(y+1)+'-01':y+'-'+String(m+1).padStart(2,'0');
+    data.rankPrizes={'1':'','2':'','3':''};
+  }
+  return data;
+}
+async function settleRankMonths(row) {
+  for(let attempt=0;attempt<5;attempt++) {
+    if(!row.data||row.data.rankPrizeMonth===rewardMonth())return row;
+    const data=closeRankMonths(structuredClone(row.data));
+    const saved=await db('gg_state?id=eq.1&version=eq.'+row.version,'PATCH',{version:row.version+1,data});
+    if(saved.length)return saved[0];
+    row=(await db('gg_state?id=eq.1'))[0];
+  }
+  fail(409,'月次更新中です。もう一度お試しください。');
+}
 function validate(data) {
   if(!data || typeof data!=='object') fail(400,'データの形式が違います');
   for(const k of ['students','missions','draws','milestonePrizes','hiddenMissions','testMissions','achievements','prizeSuggestions']) {
@@ -71,6 +97,7 @@ export async function handler(req) {
         session={role:'student',student_id:s.id};
       }
       const token=uid()+uid();
+      row=await settleRankMonths(row);
       await db('gg_sessions','POST',{...session,token_hash:await hash(token),expires_at:new Date(Date.now()+12*3600000).toISOString()});
       return Response.json({...view(row,session),token,role:session.role,studentId:session.student_id},{headers});
     }
@@ -80,6 +107,7 @@ export async function handler(req) {
     const session=(await db('gg_sessions?token_hash=eq.'+tokenHash+'&expires_at=gt.'+encodeURIComponent(new Date().toISOString())))[0];
     if(!session) fail(401,'ログインの有効期限が切れました。ログインし直してください。');
     if(b.action==='logout'){await db('gg_sessions?token_hash=eq.'+tokenHash,'DELETE');return Response.json({ok:true},{headers});}
+    row=await settleRankMonths(row);
     if(b.action==='get') return Response.json(b.version===row.version?{version:row.version,unchanged:true}:view(row,session),{headers});
     if(typeof b.requestId!=='string'||b.requestId.length>100) fail(400,'requestId required');
     for(let attempt=0;attempt<5;attempt++) {
@@ -91,7 +119,7 @@ export async function handler(req) {
         if(b.action==='save'&&(!data||b.version!==row.version)) fail(409,'別の端末で更新されました。最新情報を確認してもう一度操作してください。');
         validate(b.data);
         // This collection is managed by explicit actions; older clients must not erase it.
-        data=derived({...b.data,missionSuggestions:data?.missionSuggestions||[],prizeClaims:data?.prizeClaims||{}});
+        data=derived({...b.data,missionSuggestions:data?.missionSuggestions||[],prizeClaims:data?.prizeClaims||{},rankPrizeMonth:data?.rankPrizeMonth||rewardMonth(),rankPrizeHistory:data?.rankPrizeHistory||{}});
       } else if(b.action==='review_mission') {
         if(session.role!=='admin') fail(403,'管理者のみ操作できます');
         const proposal=data?.missionSuggestions?.find(x=>x.id===b.id);
@@ -127,13 +155,15 @@ export async function handler(req) {
           if(!d||d.status!=='進行中') fail(409,'ミッションの状態が変わりました');
           d.status='承認待ち';
         } else if(b.action==='claim_prize') {
-          if(typeof b.month!=='string'||!/^\d{4}-(0[1-9]|1[0-2])$/.test(b.month)||b.month>todayStr().slice(0,7)) fail(400,'対象月を確認してください');
+          if(typeof b.month!=='string'||!/^\d{4}-(0[1-9]|1[0-2])$/.test(b.month)||b.month>rewardMonth()) fail(400,'対象月を確認してください');
           if(!['rank','milestone'].includes(b.type)||typeof b.ref!=='string') fail(400,'景品を選んでください');
+          if(b.type==='rank'&&b.month>=rewardMonth())fail(403,'ランキング景品は順位が確定した翌月から申請できます');
           const key=deliveryKey(id,b.month,b.type,b.ref);
           data.prizeClaims=data.prizeClaims||{};
           if(data.deliveries[key]) fail(409,'この景品は受け取り済みです');
           if(!data.prizeClaims[key]) {
-            const earned=computeEarnedPrizes(data.draws,data.students,data.rankPrizes,data.milestonePrizes,b.month).find(e=>e.studentId===id&&e.type===b.type&&e.ref===b.ref);
+            const choices=b.type==='rank'?(data.rankPrizeHistory?.[b.month]?.earned||[]):computeEarnedPrizes(data.draws,data.students,{},data.milestonePrizes,b.month);
+            const earned=choices.find(e=>e.studentId===id&&e.type===b.type&&e.ref===b.ref);
             if(!earned) fail(403,'まだこの景品の条件を達成していません');
             data.prizeClaims[key]={...earned,month:b.month,requestedAt:new Date().toISOString()};
           }
@@ -149,9 +179,10 @@ export async function handler(req) {
         } else fail(400,'操作が不明です');
         derived(data);
       }
+      if(data.rankPrizeMonth!==rewardMonth()) {row=await settleRankMonths((await db('gg_state?id=eq.1'))[0]);continue;}
       const saved=await db('gg_state?id=eq.1&version=eq.'+row.version,'PATCH',{version:row.version+1,data,requests:[...row.requests,{id:b.requestId,result}].slice(-1000)});
       if(saved.length) return Response.json({...view(saved[0],session),result},{headers});
-      row=(await db('gg_state?id=eq.1'))[0];
+      row=await settleRankMonths((await db('gg_state?id=eq.1'))[0]);
     }
     fail(409,'他の端末が更新中です。もう一度操作してください。');
   } catch(e) {return Response.json({error:e.status?e.message:'処理できませんでした。再試行してください。'},{status:e.status||500,headers});}
