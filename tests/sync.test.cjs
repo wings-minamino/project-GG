@@ -75,6 +75,7 @@ async function call(body,token){const r=await ctx.handle(new Request('https://te
   await call({action:'save',requestId:'legacy-save',version:row.version,data:oldClient},admin);
   assert.equal(row.data.missionSuggestions.length,1);
   const count=row.data.missions.length;
+  const stampsBefore=row.data.draws.filter(d=>d.studentId==='s1'&&d.status==='承認済み').reduce((n,d)=>n+(d.value||1),0);
   const accept={action:'review_mission',requestId:'accept-proposal',id:proposal.id,decision:'accept',text:'英単語を毎日10個覚える',deadlineDays:7,targetGroup:'juniorHigh'};
   assert.equal((await call({...accept,requestId:'bad-days',deadlineDays:0},admin)).status,400);
   assert.equal((await call(accept,admin)).status,200);
@@ -82,12 +83,25 @@ async function call(body,token){const r=await ctx.handle(new Request('https://te
   assert.equal(row.data.missions.length,count+1);
   assert.equal(row.data.missions.at(-1).targetGroup,'juniorHigh');
   assert.equal(row.data.missionSuggestions[0].status,'採用');
+  const reward=row.data.draws.filter(d=>d.proposalReward);
+  assert.equal(reward.length,1);assert.equal(reward[0].studentId,'s1');assert.equal(reward[0].value,1);
+  assert.equal(reward[0].approvedAt,new Date().toISOString().slice(0,10));assert.equal(reward[0].hidden,true);
+  assert.equal(row.data.draws.filter(d=>d.studentId==='s1'&&d.status==='承認済み').reduce((n,d)=>n+(d.value||1),0),stampsBefore+1);
+
   assert.equal((await call({...accept,requestId:'repeat-review'},admin)).status,409);
   await call({action:'suggest_mission',requestId:'proposal2',text:'別の案'},student);
   await call({action:'review_mission',requestId:'reject-proposal',id:row.data.missionSuggestions[1].id,decision:'reject'},admin);
   assert.equal(row.data.missionSuggestions[1].status,'見送り');
   assert.equal(row.data.missions.length,count+1);
   console.log('PASS: mission proposals, isolation, review authorization, validation, legacy preservation, adoption, duplicate protection, rejection');
+  assert.equal(row.data.draws.filter(d=>d.proposalReward).length,1);
+  const drawCount=row.data.draws.length;
+  await call({action:'suggest',requestId:'prize-no-stamp',text:'景品案'},student);
+  assert.equal(row.data.draws.length,drawCount);
+  const prizeData=structuredClone(row.data);prizeData.prizeSuggestions.at(-1).status='採用(ランキング景品)';
+  await call({action:'save',requestId:'prize-accept-no-stamp',version:row.version,data:prizeData},admin);
+  assert.equal(row.data.draws.length,drawCount);
+  console.log('PASS: one adoption stamp to proposer, idempotent retry, no rejection/prize suggestion/prize adoption stamps');
   await call({action:'logout'},student);
   assert.equal((await call({action:'get'},student)).status,401);
   console.log('PASS: authentication, authorization, initial import, student isolation, request privacy/expiry, idempotency, draw limit, conflict protection, rewards, logout');
