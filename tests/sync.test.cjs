@@ -58,7 +58,7 @@ async function call(body,token){const r=await ctx.handle(new Request('https://te
   assert.equal((await call({action:'save',requestId:'collision',version,data:before},admin)).status,409);
   assert.equal(row.data.rankPrizes['1'],'別端末の景品');
   row.data.hiddenMissions=[{id:'h',name:'達成',conditionType:'monthly_count',conditionValue:1,stampReward:3}];
-  row.data.draws[0].status='承認済み';row.data.draws[0].approvedAt=new Date().toISOString().slice(0,10);
+  row.data.draws[0].status='承認済み';row.data.draws[0].approvedAt=new Date(Date.now()+9*3600000).toISOString().slice(0,10);
   await call({action:'save',requestId:'award',version:row.version,data:structuredClone(row.data)},admin);
   await call({action:'save',requestId:'award2',version:row.version,data:structuredClone(row.data)},admin);
   assert.equal(row.data.achievements.length,1);assert.equal(row.data.draws.filter(d=>d.hidden).length,1);
@@ -85,7 +85,7 @@ async function call(body,token){const r=await ctx.handle(new Request('https://te
   assert.equal(row.data.missionSuggestions[0].status,'採用');
   const reward=row.data.draws.filter(d=>d.proposalReward);
   assert.equal(reward.length,1);assert.equal(reward[0].studentId,'s1');assert.equal(reward[0].value,1);
-  assert.equal(reward[0].approvedAt,new Date().toISOString().slice(0,10));assert.equal(reward[0].hidden,true);
+  assert.equal(reward[0].approvedAt,new Date(Date.now()+9*3600000).toISOString().slice(0,10));assert.equal(reward[0].hidden,true);
   assert.equal(row.data.draws.filter(d=>d.studentId==='s1'&&d.status==='承認済み').reduce((n,d)=>n+(d.value||1),0),stampsBefore+1);
 
   assert.equal((await call({...accept,requestId:'repeat-review'},admin)).status,409);
@@ -103,7 +103,7 @@ async function call(body,token){const r=await ctx.handle(new Request('https://te
   assert.equal(row.data.draws.length,drawCount);
   console.log('PASS: one adoption stamp to proposer, idempotent retry, no rejection/prize suggestion/prize adoption stamps');
   row.data.milestonePrizes=[{id:'claimable',threshold:1,name:'文房具'},{id:'locked',threshold:9999,name:'未達成'}];
-  const month=new Date().toISOString().slice(0,7);
+  const month=new Date(Date.now()+9*3600000).toISOString().slice(0,7);
   const claim={action:'claim_prize',requestId:'claim-one',month,type:'milestone',ref:'claimable'};
   assert.equal((await call({...claim,requestId:'claim-locked',ref:'locked'},student)).status,403);
   assert.equal((await call({...claim,requestId:'other-unearned'},other)).status,403);
@@ -121,6 +121,44 @@ async function call(body,token){const r=await ctx.handle(new Request('https://te
   row.data.deliveries[claimKey]=true;
   assert.equal((await call({...claim,requestId:'claim-delivered'},student)).status,409);
   console.log('PASS: earned-only claims, ownership, deduplication, legacy preservation, snapshot and received status');
+  // Japan midnight: settle before accepting edits/claims, without a scheduled client.
+  let clock=Date.parse('2026-09-30T14:59:59Z');
+  ctx.Date=class extends Date {constructor(...args){super(...(args.length?args:[clock]));}static now(){return clock;}};
+  row.data.rankPrizeMonth='2026-09';row.data.rankPrizeHistory={};
+  row.data.rankPrizes={'1':'月末の最終景品','2':'二位の景品','3':''};
+  row.data.draws=[{id:'last-month',studentId:'s1',status:'承認済み',approvedAt:'2026-09-30',value:10}];
+  const rankClaim={action:'claim_prize',month:'2026-09',type:'rank',ref:'1'};
+  assert.equal((await call({...rankClaim,requestId:'rank-too-early'},student)).status,403);
+  const oldMonthVersion=row.version,oldMonthData=structuredClone(row.data);
+  clock=Date.parse('2026-09-30T15:00:00Z');
+  assert.equal(vm.runInContext('todayStr()',ctx),'2026-10-01');
+  assert.equal((await call({action:'save',requestId:'stale-month-edit',version:oldMonthVersion,data:oldMonthData},admin)).status,409);
+  assert.equal(row.data.rankPrizeMonth,'2026-10');
+  assert.deepEqual(row.data.rankPrizes,{'1':'','2':'','3':''});
+  const archived=JSON.stringify(row.data.rankPrizeHistory['2026-09']);
+  assert.equal(row.data.rankPrizeHistory['2026-09'].earned[0].label,'1位: 月末の最終景品');
+  const edit=structuredClone(row.data);edit.rankPrizes['1']='翌月の別景品';delete edit.rankPrizeHistory;delete edit.rankPrizeMonth;
+  assert.equal((await call({action:'save',requestId:'new-month-settings',version:row.version,data:edit},admin)).status,200);
+  assert.equal(JSON.stringify(row.data.rankPrizeHistory['2026-09']),archived);
+  // Subsequent corrections do not change finalized winners.
+  row.data.draws[0].studentId='s2';
+  assert.equal((await call({...rankClaim,requestId:'rank-wrong-student'},other)).status,403);
+  assert.equal((await call({...rankClaim,requestId:'rank-finalized'},student)).status,200);
+  assert.equal(row.data.prizeClaims['s1|2026-09|rank|1'].label,'1位: 月末の最終景品');
+  assert.equal((await call({...rankClaim,requestId:'rank-repeat'},student)).status,200);
+  assert.equal((await call({...rankClaim,month:'2026-10',requestId:'new-month-early'},student)).status,403);
+  const stable=row.version;await call({action:'get'},student);assert.equal(row.version,stable);
+  assert.equal(JSON.stringify(row.data.rankPrizeHistory['2026-09']),archived);
+  ctx.sample=structuredClone(row.data);
+  vm.runInContext("closeRankMonths(sample,'2027-02')",ctx);
+  assert.equal(ctx.sample.rankPrizeMonth,'2027-02');
+  assert.equal(ctx.sample.rankPrizeHistory['2026-10'].prizes['1'],'翌月の別景品');
+  assert.equal(ctx.sample.rankPrizeHistory['2026-11'].earned.length,0);
+  assert.ok(ctx.sample.rankPrizeHistory['2027-01']);
+  assert.equal(JSON.stringify(ctx.sample.rankPrizeHistory['2026-09']),archived);
+  assert.equal(ctx.sample.deliveries[claimKey],true);
+  ctx.Date=Date;
+  console.log('PASS: JST rollover, next-month-only claims, frozen final prizes/winners, stale save protection, legacy clients, idempotent closure, inactive months and year rollover');
   await call({action:'logout'},student);
   assert.equal((await call({action:'get'},student)).status,401);
   console.log('PASS: authentication, authorization, initial import, student isolation, request privacy/expiry, idempotency, draw limit, conflict protection, rewards, logout');
