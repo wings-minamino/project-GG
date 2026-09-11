@@ -726,7 +726,7 @@ function GachaMissionApp() {
       const result=await api({action:'get'},saved.token);
       cloud.current.token=saved.token;cloud.current.generation++;
       applyCloud(result);setCurrentStudentId(saved.studentId||null);setRole(saved.role);
-      if(['mission','prize','proposals'].includes(saved.studentTab))setStudentTab(saved.studentTab==='proposals'?'mission':saved.studentTab);
+      if(['mission','prize','proposals','ranking'].includes(saved.studentTab))setStudentTab(saved.studentTab==='proposals'?'mission':saved.studentTab);
       if(typeof saved.adminTab==='string')setAdminTab(saved.adminTab);
       setRestoringSession(false);
     } catch(e) {
@@ -1296,7 +1296,7 @@ function GachaMissionApp() {
   }, "\u30DF\u30C3\u30B7\u30E7\u30F3"), /*#__PURE__*/React.createElement("button", {
     style: studentTab === "prize" ? styles.subTabActive : styles.subTab,
     onClick: () => setStudentTab("prize")
-  }, "\u666F\u54C1")), studentTab === "mission" ? React.createElement('div',null, /*#__PURE__*/React.createElement(StudentMissionView, {
+  }, "\u666F\u54C1"), React.createElement('button',{style:studentTab==='ranking'?styles.subTabActive:styles.subTab,onClick:()=>setStudentTab('ranking')},'ランキング')), studentTab==='ranking' ? React.createElement(StudentRankingView,{draws,students,currentStudentId,month:monthKey(new Date(suggestionNow).toISOString()),isMobile}) : studentTab === "mission" ? React.createElement('div',null, /*#__PURE__*/React.createElement(StudentMissionView, {
     studentName: studentName(currentStudentId),
     missionsAvailable: myEligibleMissionCount,
     dailyPullLimit: dailyPullLimit,
@@ -1451,6 +1451,39 @@ function GachaMissionApp() {
   }, React.createElement('span',{role:'status',style:{color:saveError?'#b91c1c':undefined}},syncMessage),
      saveError && React.createElement('button',{disabled:syncBusy,onClick:()=>cloud.current.pending?saveCloud():refreshCloud(),style:{marginLeft:12}},'再試行')));
 
+}
+function studentMonthlyRanking(draws,students,month) {
+  const list=computeRanking(draws,students,month);
+  let rank=0;
+  return list.map((student,index)=>{
+    if(index===0||student.count!==list[index-1].count)rank=index+1;
+    return {...student,rank:student.count>0?rank:null};
+  });
+}
+function StudentRankingView({draws,students,currentStudentId,month,isMobile}) {
+  const list=useMemo(()=>studentMonthlyRanking(draws,students,month),[draws,students,month]);
+  const me=list.find(s=>s.id===currentStudentId);
+  const maxCount=Math.max(1,...list.map(s=>s.count));
+  const card={background:'#fff',border:'1px solid #eadfd8',borderRadius:18,padding:isMobile?20:28};
+  return React.createElement('section',null,
+    React.createElement('div',{style:{...card,background:'#fff3ee',borderColor:'#edc7b9',marginBottom:24}},
+      React.createElement('div',{style:{fontSize:14,color:'#76584b'}},formatMonth(month)+' · 自分の現在の順位'),
+      React.createElement('div',{style:{display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginTop:12}},
+        React.createElement('div',null,React.createElement('strong',{style:{fontSize:isMobile?48:64,color:'#a52b2b',lineHeight:1.2}},me?.rank?me.rank+'位':'—'),React.createElement('span',{style:{marginLeft:12,fontSize:14,color:'#76584b'}},me?.rank?'／ '+list.length+'人':'スタンプ獲得で順位がつきます')),
+        React.createElement('div',null,React.createElement('strong',{style:{fontSize:isMobile?32:42}},me?.count||0),React.createElement('span',{style:{marginLeft:8}},'スタンプ')))),
+    React.createElement('div',{style:card},
+      React.createElement('h3',{style:{margin:'0 0 8px'}},'今月のランキング'),
+      React.createElement('p',{style:{fontSize:13,color:'#666',margin:'0 0 20px'}},'今月承認されたスタンプの合計です。同じ数は同じ順位になります。'),
+      list.length===0?React.createElement('p',null,'まだランキングはありません。'):React.createElement('ol',{style:{listStyle:'none',padding:0,margin:0}},list.map(s=>{
+        const self=s.id===currentStudentId;
+        return React.createElement('li',{key:s.id,style:{padding:'14px 12px',marginBottom:8,borderRadius:12,background:self?'#fff0e8':'#f8f7f5',border:self?'1px solid #dcaa91':'1px solid transparent'}},
+          React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:10,marginBottom:10}},
+            React.createElement('strong',{style:{minWidth:38,color:self?'#a52b2b':'#555'}},s.rank?s.rank+'位':'—'),
+            React.createElement('span',{style:{flex:1,minWidth:0,overflowWrap:'anywhere',fontWeight:self?700:500}},s.name,self&&React.createElement('span',{style:{fontSize:12,marginLeft:6,color:'#a52b2b'}},'あなた')),
+            React.createElement('span',{style:{whiteSpace:'nowrap'}},React.createElement('strong',{style:{fontSize:22}},s.count),React.createElement('span',{style:{fontSize:12,marginLeft:4}},'個'))),
+          React.createElement('div',{'aria-hidden':true,style:{height:12,borderRadius:6,background:'#e7e3df',overflow:'hidden'}},React.createElement('div',{style:{height:'100%',width:(s.count/maxCount*100)+'%',borderRadius:6,background:self?'#c13d35':'#c89662',transition:'width 300ms ease'}})));
+      })),
+      list.length>0&&list.every(s=>s.count===0)&&React.createElement('p',{style:{fontSize:14,color:'#666'}},'今月はまだスタンプがありません。最初のミッションクリアを目指そう！')));
 }
 function MissionProposalPanel({admin,proposals,onAction}) {
   const [text,setText]=useState('');
