@@ -179,7 +179,12 @@ function computeEarnedPrizes(draws, students, rankPrizes, milestonePrizes, month
   });
   return earned;
 }
+function milestoneClaimOpen(month,date=todayStr()) {
+  const [y,m]=month.split('-').map(Number);
+  const next=new Date(Date.UTC(y,m,1)).toISOString().slice(0,7);
+  return month<=date.slice(0,7)&&date<=next+'-10';
+}
 function deliveryKey(studentId, month, type, ref) {
   return `${studentId}|${month}|${type}|${ref}`;
 }
-export { computeEarnedPrizes, deliveryKey, deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade };
+export { milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade };

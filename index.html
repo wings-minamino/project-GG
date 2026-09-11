@@ -606,6 +606,11 @@ function computeEarnedPrizes(draws, students, rankPrizes, milestonePrizes, month
   });
   return earned;
 }
+function milestoneClaimOpen(month,date=todayStr()) {
+  const [y,m]=month.split('-').map(Number);
+  const next=new Date(Date.UTC(y,m,1)).toISOString().slice(0,7);
+  return month<=date.slice(0,7)&&date<=next+'-10';
+}
 function deliveryKey(studentId, month, type, ref) {
   return `${studentId}|${month}|${type}|${ref}`;
 }
@@ -1269,9 +1274,13 @@ function GachaMissionApp() {
   const undeliveredCount = earnedThisDistMonth.filter(e => !deliveries[deliveryKey(e.studentId, distMonth, e.type, e.ref)]).length;
   const myEarnedThisMonth = useMemo(() => {
     if(!currentStudentId)return [];
-    const earned=earnedForMonth(studentMonth).filter(e=>e.studentId===currentStudentId);
-    const map=new Map(earned.map(e=>[deliveryKey(e.studentId,studentMonth,e.type,e.ref),e]));
-    Object.values(prizeClaims).filter(e=>e.studentId===currentStudentId&&e.month===studentMonth).forEach(e=>map.set(deliveryKey(e.studentId,studentMonth,e.type,e.ref),e));
+    const previous=shiftMonth(studentMonth,-1);
+    const earned=[
+      ...earnedForMonth(studentMonth).filter(e=>e.type==='milestone').map(e=>({...e,month:studentMonth})),
+      ...earnedForMonth(previous).map(e=>({...e,month:previous}))
+    ].filter(e=>e.studentId===currentStudentId&&(e.type==='rank'||milestoneClaimOpen(e.month)));
+    const map=new Map(earned.map(e=>[deliveryKey(e.studentId,e.month,e.type,e.ref),e]));
+    Object.values(prizeClaims).filter(e=>e.studentId===currentStudentId&&(e.type==='rank'?shiftMonth(e.month,1)===studentMonth:e.month===studentMonth||e.month===previous)).forEach(e=>map.set(deliveryKey(e.studentId,e.month,e.type,e.ref),e));
     return [...map.values()];
   },[draws,students,rankPrizeHistory,milestonePrizes,studentMonth,currentStudentId,prizeClaims,deliveries,suggestionNow]);
   const myUnseenAchievement = useMemo(() => currentStudentId ? achievements.find(a => a.studentId === currentStudentId && !a.seen) : null, [achievements, currentStudentId]);
@@ -1373,7 +1382,7 @@ function GachaMissionApp() {
     rankPrizes: studentMonth===rankPrizeMonth&&studentMonth===currentMonthKey()?rankPrizes:(rankPrizeHistory[studentMonth]?.prizes||{}),
     myEarnedThisMonth: myEarnedThisMonth,
     prizeClaims:prizeClaims,
-    claimPrize:(e)=>studentAction('claim_prize',{month:studentMonth,type:e.type,ref:e.ref}),
+    claimPrize:(e)=>studentAction('claim_prize',{month:e.month,type:e.type,ref:e.ref}),
     deliveries: deliveries,
     currentStudentId: currentStudentId,
     newSuggestionText: newSuggestionText,
@@ -1901,8 +1910,8 @@ function StudentPrizeView({
 }) {
   const sortedMilestones = useMemo(() => [...milestonePrizes].sort((a, b) => a.threshold - b.threshold), [milestonePrizes]);
   return React.createElement("div", null,
-    React.createElement('p',{style:{fontSize:13,lineHeight:1.7}},'ランキング景品は月末の順位と最後に保存された景品で確定し、翌月から申請できます。対象月を選んで申請してください。'),
-    React.createElement('button',{style:styles.navBtn,onClick:()=>setStudentMonth(shiftMonth(currentMonthKey(),-1))},'前月のランキング景品を確認'), /*#__PURE__*/React.createElement("div", {
+    React.createElement('p',{style:{fontSize:13,lineHeight:1.7}},'ランキング景品は前月分を今月の画面から申請できます（例：9月分は10月に表示）。スタンプ景品は翌月10日まで申請でき、11日から未申請の景品は表示されません。申請済みの景品は残ります。'),
+    React.createElement('button',{style:styles.navBtn,onClick:()=>setStudentMonth(currentMonthKey())},'今月の申請欄を表示'), /*#__PURE__*/React.createElement("div", {
     style: styles.sectionHead
   }, /*#__PURE__*/React.createElement("h3", {
     style: styles.sectionTitle
@@ -1921,14 +1930,14 @@ function StudentPrizeView({
   }, myEarnedThisMonth.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: styles.emptyBox
   }, "\u3053\u306E\u6708\u306F\u307E\u3060\u666F\u54C1\u3092\u7372\u5F97\u3057\u3066\u3044\u307E\u305B\u3093"), myEarnedThisMonth.map(e => {
-    const delivered = !!deliveries[deliveryKey(currentStudentId, studentMonth, e.type, e.ref)];
-    const claimed=!!prizeClaims[deliveryKey(currentStudentId,studentMonth,e.type,e.ref)];
+    const delivered = !!deliveries[deliveryKey(currentStudentId, e.month, e.type, e.ref)];
+    const claimed=!!prizeClaims[deliveryKey(currentStudentId,e.month,e.type,e.ref)];
     return /*#__PURE__*/React.createElement("div", {
-      key: `${e.type}-${e.ref}`,
+      key: `${e.month}-${e.type}-${e.ref}`,
       style: styles.missionCard
     }, /*#__PURE__*/React.createElement("div", {
       style: styles.missionText
-    }, e.label), /*#__PURE__*/React.createElement("span", {
+    }, formatMonth(e.month), "分 · ", e.label), /*#__PURE__*/React.createElement("span", {
       style: delivered ? styles.approvedTag : styles.pendingTag
     }, delivered ? "受け取り済み" : claimed ? "申請済み・先生からの受け渡し待ち" : "申請できます"), !delivered&&!claimed&&React.createElement('button',{style:styles.gachaBtnSmall,onClick:()=>claimPrize(e)},'受け取りを申請'));
   })), /*#__PURE__*/React.createElement("div", {

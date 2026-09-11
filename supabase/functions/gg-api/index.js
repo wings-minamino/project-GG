@@ -1,4 +1,4 @@
-import {computeEarnedPrizes, deliveryKey, deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
+import {milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
 
 // Bearer-token authentication, no ambient cookies: also supports VS Code Live Server.
 const headers = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type, authorization','Access-Control-Allow-Methods':'POST, OPTIONS','Content-Type':'application/json','Cache-Control':'no-store'};
@@ -162,6 +162,7 @@ export async function handler(req) {
           data.prizeClaims=data.prizeClaims||{};
           if(data.deliveries[key]) fail(409,'この景品は受け取り済みです');
           if(!data.prizeClaims[key]) {
+            if(b.type==='milestone'&&!milestoneClaimOpen(b.month))fail(403,'スタンプ景品の申請期限は翌月10日までです');
             const choices=b.type==='rank'?(data.rankPrizeHistory?.[b.month]?.earned||[]):computeEarnedPrizes(data.draws,data.students,{},data.milestonePrizes,b.month);
             const earned=choices.find(e=>e.studentId===id&&e.type===b.type&&e.ref===b.ref);
             if(!earned) fail(403,'まだこの景品の条件を達成していません');
