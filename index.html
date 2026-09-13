@@ -1227,7 +1227,7 @@ function GachaMissionApp() {
     return missions.filter(m => isMissionEligible(m, currentStudent ? currentStudent.grade : null)).length;
   }, [missions, students, currentStudentId]);
   const myTodayPullCount = useMemo(() => draws.filter(d => d.studentId === currentStudentId && d.drawnAt === todayStr() && !d.issuedByAdmin && !d.hidden).length, [draws, currentStudentId]);
-  const myActive = myDraws.filter(d => d.status !== "承認済み");
+  const myActive = myDraws.filter(d => d.status !== "承認済み" && !isDrawOverdue(d));
   const myStampsThisMonth = useMemo(() => currentStudentId ? stampsForStudentMonth(draws, currentStudentId, studentMonth) : 0, [draws, currentStudentId, studentMonth]);
   const pendingApprovals = useMemo(() => draws.filter(d => d.status === "承認待ち").sort((a, b) => a.drawnAt.localeCompare(b.drawnAt)), [draws]);
   const ranking = useMemo(() => computeRanking(draws, students, rankMonth), [draws, students, rankMonth]);
@@ -1771,7 +1771,7 @@ function StudentMissionView({
       borderColor: gachaResult.color,
       animation: gachaPhase === "dropping" ? "dropBounce 0.55s cubic-bezier(.34,1.56,.64,1)" : "crackOpen 0.4s ease-in forwards"
     }
-  })), gachaPhase === "done" && gachaResult && /*#__PURE__*/React.createElement("div", {
+  })), gachaPhase === "done" && gachaResult && !isDrawOverdue(gachaResult) && /*#__PURE__*/React.createElement("div", {
     style: {
       ...styles.resultCard,
       borderColor: gachaResult.color,
