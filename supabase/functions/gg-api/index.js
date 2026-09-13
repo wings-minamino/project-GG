@@ -68,7 +68,7 @@ function view(row,session) {
   if(!d.students.some(s=>s.id===id)) fail(401,'生徒の登録が変更されました。ログインし直してください。');
   d.students=d.students.map(s=>s.id===id?s:{id:s.id,name:s.name,number:'',school:'',grade:''});
   // Ranking needs only other students' approved stamp totals, never their missions or login numbers.
-  d.draws=d.draws.filter(x=>x.studentId===id||x.status==='承認済み').map(x=>x.studentId===id?x:{id:x.id,studentId:x.studentId,status:x.status,approvedAt:x.approvedAt,value:x.value});
+  d.draws=d.draws.filter(x=>x.status==='承認済み'||(x.studentId===id&&!(x.deadline&&x.deadline<todayStr()))).map(x=>x.studentId===id?x:{id:x.id,studentId:x.studentId,status:x.status,approvedAt:x.approvedAt,value:x.value});
   d.prizeSuggestions=d.prizeSuggestions.filter(x=>x.studentId===id && Date.now()-(x.createdAtMs||Date.parse(x.createdAt))<7*86400000).map(({id,studentId,text,createdAt,createdAtMs})=>({id,studentId,text,createdAt,createdAtMs}));
   d.achievements=d.achievements.filter(x=>x.studentId===id);
   d.deliveries=Object.fromEntries(Object.entries(d.deliveries).filter(([key])=>key.startsWith(id+'|')));
@@ -108,7 +108,7 @@ export async function handler(req) {
     if(!session) fail(401,'ログインの有効期限が切れました。ログインし直してください。');
     if(b.action==='logout'){await db('gg_sessions?token_hash=eq.'+tokenHash,'DELETE');return Response.json({ok:true},{headers});}
     row=await settleRankMonths(row);
-    if(b.action==='get') return Response.json(b.version===row.version?{version:row.version,unchanged:true}:view(row,session),{headers});
+    if(b.action==='get') return Response.json(session.role==='admin'&&b.version===row.version?{version:row.version,unchanged:true}:view(row,session),{headers});
     if(typeof b.requestId!=='string'||b.requestId.length>100) fail(400,'requestId required');
     for(let attempt=0;attempt<5;attempt++) {
       if(row.requests.some(x=>x.id===b.requestId)) return Response.json({...view(row,session),result:row.requests.find(x=>x.id===b.requestId).result},{headers});
