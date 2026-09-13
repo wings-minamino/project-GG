@@ -204,6 +204,43 @@ async function call(body,token){const r=await ctx.handle(new Request('https://te
   ctx.studentMonth='2026-09';ctx.prizeClaims={};
   assert.equal(select().filter(e=>e.type==='rank').length,0);
   console.log('PASS: next-month ranking display, award-month keys, JST 10th deadline, 11th rejection/hiding, claimed history retained, December rollover');
+  const configure={action:'set_rank_rules',month:'2026-10',expectedRules:null,thresholds:[0,5,10,20,30]};
+  assert.equal((await call({...configure,requestId:'ranks-forbidden'},student)).status,403);
+  assert.equal((await call({...configure,requestId:'ranks-invalid',thresholds:[0,5,4,20,30]},admin)).status,400);
+  assert.equal((await call({...configure,requestId:'ranks-start'},admin)).status,200);
+  assert.equal(row.data.rankMonth,'2026-10');
+  assert.equal(row.data.studentRanks.s1,undefined); // Normal until first monthly assessment.
+  assert.equal((await call({...configure,requestId:'ranks-stale'},admin)).status,409);
+  const oldRankClient=structuredClone(row.data);
+  delete oldRankClient.rankRules;delete oldRankClient.studentRanks;delete oldRankClient.rankHistory;delete oldRankClient.rankMonth;
+  assert.equal((await call({action:'save',version:row.version,data:oldRankClient,requestId:'rank-old-client'},admin)).status,200);
+  assert.deepEqual(row.data.rankRules,[0,5,10,20,30]);
+  row.data.draws.push({id:'rank-oct',studentId:'s1',status:'承認済み',approvedAt:'2026-10-31',value:50});
+  clock=Date.parse('2026-10-31T15:00:00Z');
+  const promoted=await call({action:'get'},student);
+  assert.equal(promoted.data.studentRanks.s1,1); // Even 50 stamps promote only one step.
+  assert.equal(promoted.data.studentRanks.s2,undefined);
+  assert.equal(Object.keys(promoted.data.rankHistory['2026-10'].results).length,1);
+  assert.equal(row.data.studentRanks.s2,0);
+  const frozenRank=JSON.stringify(row.data.rankHistory['2026-10']);
+  await call({action:'get'},student);
+  assert.equal(row.data.studentRanks.s1,1);
+  const cfg2={action:'set_rank_rules',month:'2026-11',expectedRules:[0,5,10,20,30],thresholds:[0,6,12,24,36],requestId:'ranks-change'};
+  assert.equal((await call(cfg2,admin)).status,200);
+  assert.equal(JSON.stringify(row.data.rankHistory['2026-10']),frozenRank);
+  assert.equal(row.data.studentRanks.s1,1);
+  for(const [level,count,expected] of [[0,0,0],[0,5,1],[1,4,0],[1,5,1],[1,9,1],[1,10,2],[2,0,1],[3,30,4],[4,29,3],[4,30,4]])
+    assert.equal(vm.runInContext(`nextStudentRank(${level},${count},[0,5,10,20,30])`,ctx),expected);
+  ctx.rankSample=structuredClone(row.data);
+  vm.runInContext("settleStudentRanks(rankSample,'2027-01')",ctx);
+  assert.equal(ctx.rankSample.studentRanks.s1,0);
+  assert.equal(ctx.rankSample.rankHistory['2026-11'].results.s1.after,0);
+  assert.equal(ctx.rankSample.rankMonth,'2027-01');
+  assert.equal(JSON.stringify(ctx.rankSample.rankHistory['2026-10']),frozenRank);
+  // Confirm saved snapshot field order includes the separate server rank month.
+  const rankHtml=fs.readFileSync(root+'/index.html','utf8');
+  assert.ok(rankHtml.includes('rankMonth:studentRankMonth'));
+  console.log('PASS: rank config validation/authorization/conflicts, normal start, JST monthly promotion, one-step bounds, maintenance/demotion, private results, legacy saves and frozen history');
   ctx.Date=Date;
   console.log('PASS: JST rollover, next-month-only claims, frozen final prizes/winners, stale save protection, legacy clients, idempotent closure, inactive months and year rollover');
   await call({action:'logout'},student);

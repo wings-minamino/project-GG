@@ -1,4 +1,4 @@
-import {milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
+import {settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
 
 // Bearer-token authentication, no ambient cookies: also supports VS Code Live Server.
 const headers = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type, authorization','Access-Control-Allow-Methods':'POST, OPTIONS','Content-Type':'application/json','Cache-Control':'no-store'};
@@ -25,11 +25,11 @@ function closeRankMonths(data,month=rewardMonth()) {
     data.rankPrizeMonth=m===12?(y+1)+'-01':y+'-'+String(m+1).padStart(2,'0');
     data.rankPrizes={'1':'','2':'','3':''};
   }
-  return data;
+  return settleStudentRanks(data,month);
 }
 async function settleRankMonths(row) {
   for(let attempt=0;attempt<5;attempt++) {
-    if(!row.data||row.data.rankPrizeMonth===rewardMonth())return row;
+    if(!row.data||(row.data.rankPrizeMonth===rewardMonth()&&(!row.data.rankRules||row.data.rankMonth===rewardMonth())))return row;
     const data=closeRankMonths(structuredClone(row.data));
     const saved=await db('gg_state?id=eq.1&version=eq.'+row.version,'PATCH',{version:row.version+1,data});
     if(saved.length)return saved[0];
@@ -73,6 +73,8 @@ function view(row,session) {
   d.achievements=d.achievements.filter(x=>x.studentId===id);
   d.deliveries=Object.fromEntries(Object.entries(d.deliveries).filter(([key])=>key.startsWith(id+'|')));
   d.prizeClaims=Object.fromEntries(Object.entries(d.prizeClaims||{}).filter(([,claim])=>claim.studentId===id));
+  d.studentRanks={[id]:d.studentRanks?.[id]||0};
+  d.rankHistory=Object.fromEntries(Object.entries(d.rankHistory||{}).map(([month,h])=>[month,{...h,results:h.results?.[id]?{[id]:h.results[id]}:{}}]));
   d.hiddenMissions=[]; d.testMissions=[];
   return {version:row.version,data:d};
 }
@@ -119,7 +121,14 @@ export async function handler(req) {
         if(b.action==='save'&&(!data||b.version!==row.version)) fail(409,'別の端末で更新されました。最新情報を確認してもう一度操作してください。');
         validate(b.data);
         // This collection is managed by explicit actions; older clients must not erase it.
-        data=derived({...b.data,missionSuggestions:data?.missionSuggestions||[],prizeClaims:data?.prizeClaims||{},rankPrizeMonth:data?.rankPrizeMonth||rewardMonth(),rankPrizeHistory:data?.rankPrizeHistory||{}});
+        data=derived({...b.data,missionSuggestions:data?.missionSuggestions||[],prizeClaims:data?.prizeClaims||{},rankPrizeMonth:data?.rankPrizeMonth||rewardMonth(),rankPrizeHistory:data?.rankPrizeHistory||{},rankRules:data?.rankRules||null,rankMonth:data?.rankMonth||null,studentRanks:data?.studentRanks||{},rankHistory:data?.rankHistory||{}});
+      } else if(b.action==='set_rank_rules') {
+        if(session.role!=='admin'||!data)fail(403,'管理者のみ操作できます');
+        if(b.month!==rewardMonth()||JSON.stringify(b.expectedRules)!==JSON.stringify(data.rankRules||null))fail(409,'基準が更新されました。最新の画面で設定し直してください');
+        if(!Array.isArray(b.thresholds)||b.thresholds.length!==5||b.thresholds[0]!==0||b.thresholds.some((n,i)=>!Number.isSafeInteger(n)||n<0||n>100000||(i>0&&n<=b.thresholds[i-1])))fail(400,'基準はノーマル0個、以降は前のランクより大きい整数（10万個以下）にしてください');
+        data.rankRules=[...b.thresholds];
+        data.rankMonth=data.rankMonth||rewardMonth();
+        data.studentRanks=data.studentRanks||{};data.rankHistory=data.rankHistory||{};
       } else if(b.action==='review_mission') {
         if(session.role!=='admin') fail(403,'管理者のみ操作できます');
         const proposal=data?.missionSuggestions?.find(x=>x.id===b.id);

@@ -621,6 +621,10 @@ function GachaMissionApp() {
   const [rankPrizes, setRankPrizes] = useState(initialRankPrizes);
   const [rankPrizeMonth,setRankPrizeMonth]=useState(currentMonthKey());
   const [rankPrizeHistory,setRankPrizeHistory]=useState({});
+  const [rankRules,setRankRules]=useState(null);
+  const [studentRankMonth,setStudentRankMonth]=useState(null);
+  const [studentRanks,setStudentRanks]=useState({});
+  const [rankHistory,setRankHistory]=useState({});
   const [milestonePrizes, setMilestonePrizes] = useState(initialMilestonePrizes);
   const [deliveries, setDeliveries] = useState({});
   const [prizeClaims,setPrizeClaims] = useState({});
@@ -752,7 +756,7 @@ function GachaMissionApp() {
     if(!role||!cloud.current.token)return;
     try {sessionStorage.setItem(sessionKey,JSON.stringify({token:cloud.current.token,role,studentId:currentStudentId,studentTab,adminTab}));} catch {}
   },[role,currentStudentId,studentTab,adminTab]);
-  const snapshot = {missions, draws, students, rankPrizes, rankPrizeMonth, rankPrizeHistory, milestonePrizes, deliveries, prizeClaims, hiddenMissions, testMissions, achievements, prizeSuggestions, missionSuggestions, lastPromotionYear, dailyPullLimit};
+  const snapshot = {missions, draws, students, rankPrizes, rankPrizeMonth, rankPrizeHistory, rankRules, rankMonth:studentRankMonth, studentRanks, rankHistory, milestonePrizes, deliveries, prizeClaims, hiddenMissions, testMissions, achievements, prizeSuggestions, missionSuggestions, lastPromotionYear, dailyPullLimit};
   latest.current = snapshot;
   const snapshotText = JSON.stringify(snapshot);
   const composingInput = useRef(false);
@@ -782,6 +786,10 @@ function GachaMissionApp() {
     next.rankPrizes=data.rankPrizes; setRankPrizes(data.rankPrizes);
     next.rankPrizeMonth=data.rankPrizeMonth||currentMonthKey(); setRankPrizeMonth(next.rankPrizeMonth);
     next.rankPrizeHistory=data.rankPrizeHistory||{}; setRankPrizeHistory(next.rankPrizeHistory);
+    next.rankRules=data.rankRules||null; setRankRules(next.rankRules);
+    next.rankMonth=data.rankMonth||null; setStudentRankMonth(next.rankMonth);
+    next.studentRanks=data.studentRanks||{}; setStudentRanks(next.studentRanks);
+    next.rankHistory=data.rankHistory||{}; setRankHistory(next.rankHistory);
     next.milestonePrizes=data.milestonePrizes; setMilestonePrizes(data.milestonePrizes);
     next.deliveries=data.deliveries; setDeliveries(data.deliveries);
     next.prizeClaims=data.prizeClaims||{}; setPrizeClaims(next.prizeClaims);
@@ -1283,6 +1291,7 @@ function GachaMissionApp() {
     Object.values(prizeClaims).filter(e=>e.studentId===currentStudentId&&(e.type==='rank'?shiftMonth(e.month,1)===studentMonth:e.month===studentMonth||e.month===previous)).forEach(e=>map.set(deliveryKey(e.studentId,e.month,e.type,e.ref),e));
     return [...map.values()];
   },[draws,students,rankPrizeHistory,milestonePrizes,studentMonth,currentStudentId,prizeClaims,deliveries,suggestionNow]);
+  const studentRankPanel=React.createElement(StudentRankCard,{rules:rankRules,level:studentRanks[currentStudentId]||0,count:stampsForStudentMonth(draws,currentStudentId,currentMonthKey()),history:rankHistory,studentId:currentStudentId});
   const myUnseenAchievement = useMemo(() => currentStudentId ? achievements.find(a => a.studentId === currentStudentId && !a.seen) : null, [achievements, currentStudentId]);
   const myAchievements = useMemo(() => currentStudentId ? achievements.filter(a => a.studentId === currentStudentId).sort((a, b) => b.achievedAt.localeCompare(a.achievedAt)) : [], [achievements, currentStudentId]);
   const mySuggestions = useMemo(() => currentStudentId ? prizeSuggestions.filter(s => s.studentId === currentStudentId && isRecentSuggestion(s, suggestionNow)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [], [prizeSuggestions, currentStudentId, suggestionNow]);
@@ -1358,7 +1367,8 @@ function GachaMissionApp() {
   }, "\u30DF\u30C3\u30B7\u30E7\u30F3"), /*#__PURE__*/React.createElement("button", {
     style: studentTab === "prize" ? styles.subTabActive : styles.subTab,
     onClick: () => setStudentTab("prize")
-  }, "\u666F\u54C1"), React.createElement('button',{style:studentTab==='ranking'?styles.subTabActive:styles.subTab,onClick:()=>setStudentTab('ranking')},'ランキング')), studentTab==='ranking' ? React.createElement(StudentRankingView,{draws,students,currentStudentId,month:monthKey(new Date(suggestionNow+9*3600000).toISOString()),isMobile}) : studentTab === "mission" ? React.createElement('div',null, /*#__PURE__*/React.createElement(StudentMissionView, {
+  }, "\u666F\u54C1"), React.createElement('button',{style:studentTab==='ranking'?styles.subTabActive:styles.subTab,onClick:()=>setStudentTab('ranking')},'ランキング')), studentTab==='ranking' ? React.createElement(StudentRankingView,{rankPanel:studentRankPanel,draws,students,currentStudentId,month:monthKey(new Date(suggestionNow+9*3600000).toISOString()),isMobile}) : studentTab === "mission" ? React.createElement('div',null, /*#__PURE__*/React.createElement(StudentMissionView, {
+    rankPanel:studentRankPanel,
     studentName: studentName(currentStudentId),
     missionsAvailable: myEligibleMissionCount,
     dailyPullLimit: dailyPullLimit,
@@ -1391,6 +1401,7 @@ function GachaMissionApp() {
     mySuggestions: mySuggestions,
     isMobile: isMobile
   })) : /*#__PURE__*/React.createElement(AdminView, {
+    rankSystemPanel:React.createElement(RankSettingsPanel,{rules:rankRules,ranks:studentRanks,history:rankHistory,students,onAction:studentAction}),
     missionProposalPanel:React.createElement(MissionProposalPanel,{admin:true,proposals:missionSuggestions,onAction:studentAction}),
     missionProposalCount:missionSuggestions.filter(x=>x.status==='検討中').length,
     adminTab: adminTab,
@@ -1548,12 +1559,62 @@ function RankingName({name,self=false,maxFontSize=16,style={}}) {
       React.createElement('span',{ref:label,style:{display:'inline-block',whiteSpace:'nowrap',fontSize:maxFontSize}},name)),
     self&&React.createElement('span',{style:{fontSize:12,color:'#a52b2b',whiteSpace:'nowrap',flexShrink:0}},'あなた'));
 }
-function StudentRankingView({draws,students,currentStudentId,month,isMobile}) {
+const STUDENT_RANK_NAMES=['ノーマル','ブロンズ','シルバー','ゴールド','プラチナ'];
+const STUDENT_RANK_COLORS=['#696969','#92552a','#596a7a','#8a6500','#256f78'];
+function StudentRankCard({rules,level=0,count=0,history={},studentId}) {
+  const previous=shiftMonth(currentMonthKey(),-1),result=history[previous]?.results?.[studentId];
+  const next=level<4?level+1:null;
+  return React.createElement('section',{style:{background:'#fff',border:'1px solid #e5dfd6',borderRadius:16,padding:20,marginBottom:20}},
+    React.createElement('div',{style:{fontSize:13,color:'#756b63'}},'現在のランク'),
+    React.createElement('strong',{style:{display:'block',fontSize:26,color:STUDENT_RANK_COLORS[level],margin:'6px 0'}},STUDENT_RANK_NAMES[level]),
+    !rules?React.createElement('p',null,'ランクの基準は先生が準備中です。'):React.createElement(React.Fragment,null,
+      React.createElement('p',{style:{margin:'8px 0'}},'今月のスタンプ：',React.createElement('strong',null,count),'個'),
+      React.createElement('p',{style:{margin:'8px 0',fontSize:14}},count>=rules[level]?'今月のランク維持基準を達成！':`維持まであと${rules[level]-count}個（基準${rules[level]}個）`),
+      next!==null?React.createElement('div',null,
+        React.createElement('p',{style:{margin:'8px 0',fontSize:14}},count>=rules[next]?`翌月の${STUDENT_RANK_NAMES[next]}昇格基準を達成！`:`${STUDENT_RANK_NAMES[next]}まであと${rules[next]-count}個（基準${rules[next]}個）`),
+        React.createElement('progress',{max:rules[next],value:Math.min(count,rules[next]),style:{width:'100%',accentColor:STUDENT_RANK_COLORS[next]}})):
+        React.createElement('p',null,'最上位のプラチナです！'),
+      React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginTop:12}},STUDENT_RANK_NAMES.map((name,i)=>React.createElement('span',{key:name,style:{fontSize:12,padding:'5px 8px',borderRadius:8,background:i===level?'#fff0d8':'#f5f3ef',color:STUDENT_RANK_COLORS[i]}},name,' ',rules[i],'個'))),
+      result&&React.createElement('p',{style:{fontSize:13}},formatMonth(previous),'の結果：',result.count,'個 ／ ',STUDENT_RANK_NAMES[result.before],' → ',STUDENT_RANK_NAMES[result.after]),
+      React.createElement('p',{style:{fontSize:12,color:'#756b63',marginBottom:0}},'月初に前月の結果で判定します。昇格・降格は1段階ずつ。表示は現在の基準に基づく目安です。')));
+}
+function RankSettingsPanel({rules,ranks,history,students,onAction}) {
+  const [draft,setDraft]=useState(()=>rules?rules.map(String):['0','','','','']);
+  const [expected,setExpected]=useState(rules);
+  const [dirty,setDirty]=useState(false);
+  const [message,setMessage]=useState('');
+  useEffect(()=>{if(!dirty){setDraft(rules?rules.map(String):['0','','','','']);setExpected(rules);}},[rules,dirty]);
+  async function submit(e) {
+    e.preventDefault();
+    const thresholds=draft.map(Number);
+    if(draft.some(x=>x==='')||thresholds.some((n,i)=>!Number.isSafeInteger(n)||n<0||n>100000||(i>0&&n<=thresholds[i-1]))){setMessage('各基準を、前のランクより大きい整数で入力してください。');return;}
+    const result=await onAction('set_rank_rules',{thresholds,expectedRules:expected,month:currentMonthKey()});
+    if(result){setDirty(false);setMessage('基準を保存しました。今月の結果を翌月初めに判定します。');}
+  }
+  const previous=shiftMonth(currentMonthKey(),-1);
+  return React.createElement('section',null,
+    React.createElement('h3',null,'ランク制度の設定'),
+    React.createElement('p',{style:{fontSize:14,lineHeight:1.7}},'月のスタンプ数が次のランクの基準以上なら1段階昇格。現在の基準以上なら維持、未満なら1段階降格します。ノーマルより下には下がりません。'),
+    React.createElement('p',{style:{fontSize:13}},rules?'月末までに最後に保存された基準で、翌月初めに判定します。確定済みのランクは変更されません。':'基準を保存すると全員ノーマルから開始します。最初の判定は翌月初めです。'),
+    React.createElement('form',{onSubmit:submit},STUDENT_RANK_NAMES.map((name,i)=>React.createElement('label',{key:name,style:{display:'flex',alignItems:'center',gap:12,marginBottom:12}},
+      React.createElement('span',{style:{width:90,color:STUDENT_RANK_COLORS[i]}},name),
+      React.createElement('input',{type:'number',required:true,min:i===0?0:1,max:100000,step:1,disabled:i===0,value:draft[i],style:{...styles.input,width:110,flex:'none'},onChange:e=>{setDirty(true);setMessage('');setDraft(draft.map((v,j)=>j===i?e.target.value:v));}}),'個')),
+      React.createElement('button',{type:'submit',style:styles.gachaBtnSmall},'基準を保存')),
+    React.createElement('p',{role:'status'},message),
+    React.createElement('h3',null,'生徒の現在のランク'),
+    React.createElement('div',{style:{overflowX:'auto'}},React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',textAlign:'left',fontSize:14}},
+      React.createElement('thead',null,React.createElement('tr',null,['生徒','現在のランク','前月スタンプ','前月からの変化'].map(t=>React.createElement('th',{key:t,style:{padding:10,whiteSpace:'nowrap'}},t)))),
+      React.createElement('tbody',null,students.map(s=>{const r=history[previous]?.results?.[s.id];return React.createElement('tr',{key:s.id},
+        React.createElement('td',{style:{padding:10}},s.name),React.createElement('td',{style:{padding:10,whiteSpace:'nowrap',color:STUDENT_RANK_COLORS[ranks[s.id]||0]}},STUDENT_RANK_NAMES[ranks[s.id]||0]),
+        React.createElement('td',{style:{padding:10}},r?r.count+'個':'—'),React.createElement('td',{style:{padding:10}},r?(r.after>r.before?'昇格':r.after<r.before?'降格':'維持'):'初回判定待ち'));})))));
+}
+
+function StudentRankingView({rankPanel,draws,students,currentStudentId,month,isMobile}) {
   const list=useMemo(()=>studentMonthlyRanking(draws,students,month),[draws,students,month]);
   const me=list.find(s=>s.id===currentStudentId);
   const maxCount=Math.max(1,...list.map(s=>s.count));
   const card={background:'#fff',border:'1px solid #eadfd8',borderRadius:18,padding:isMobile?20:28};
-  return React.createElement('section',null,
+  return React.createElement('section',null,rankPanel,
     React.createElement('div',{style:{...card,background:'#fff3ee',borderColor:'#edc7b9',marginBottom:24}},
       React.createElement('div',{style:{fontSize:14,color:'#76584b'}},formatMonth(month)+' · 自分の現在の順位'),
       React.createElement('div',{style:{display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginTop:12}},
@@ -1712,6 +1773,7 @@ function LoginScreen({
   }, "\u751F\u5F92\u306F\u3053\u3061\u3089"))));
 }
 function StudentMissionView({
+  rankPanel,
   studentName,
   missionsAvailable,
   pullGacha,
@@ -1735,7 +1797,7 @@ function StudentMissionView({
   const isAnimating = gachaPhase === "shaking" || gachaPhase === "dropping" || gachaPhase === "cracking";
   const limitReached = dailyPullLimit > 0 && myTodayPullCount >= dailyPullLimit;
   const canPull = missionsAvailable > 0 && !isAnimating && !limitReached;
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", {
+  return /*#__PURE__*/React.createElement("div", null, rankPanel, /*#__PURE__*/React.createElement("h2", {
     style: styles.greeting
   }, studentName, "\u3055\u3093\u3001\u3088\u3046\u3053\u305D"), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2186,7 +2248,7 @@ function AdminView(props) {
   }, "\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u9001\u308B"), /*#__PURE__*/React.createElement("button", {
     style: adminTab === "ranking" ? styles.tabActive : styles.tab,
     onClick: () => setAdminTab("ranking")
-  }, "\u6708\u9593\u30E9\u30F3\u30AD\u30F3\u30B0"), React.createElement('button',{style:adminTab==='proposals'?styles.tabActive:styles.tab,onClick:()=>setAdminTab('proposals')},'生徒のミッション案',props.missionProposalCount>0&&React.createElement('span',{style:styles.tabBadge},props.missionProposalCount))), adminTab==='proposals'&&props.missionProposalPanel, adminTab === "approve" && /*#__PURE__*/React.createElement("div", null, pendingApprovals.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, "\u6708\u9593\u30E9\u30F3\u30AD\u30F3\u30B0"), React.createElement('button',{style:adminTab==='rankSystem'?styles.tabActive:styles.tab,onClick:()=>setAdminTab('rankSystem')},'ランク制度'), React.createElement('button',{style:adminTab==='proposals'?styles.tabActive:styles.tab,onClick:()=>setAdminTab('proposals')},'生徒のミッション案',props.missionProposalCount>0&&React.createElement('span',{style:styles.tabBadge},props.missionProposalCount))), adminTab==='rankSystem'&&props.rankSystemPanel, adminTab==='proposals'&&props.missionProposalPanel, adminTab === "approve" && /*#__PURE__*/React.createElement("div", null, pendingApprovals.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: styles.emptyBox
   }, "\u627F\u8A8D\u5F85\u3061\u306E\u30DF\u30C3\u30B7\u30E7\u30F3\u306F\u3042\u308A\u307E\u305B\u3093") : /*#__PURE__*/React.createElement("div", {
     style: styles.approveList

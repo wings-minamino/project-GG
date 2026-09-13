@@ -187,4 +187,33 @@ function milestoneClaimOpen(month,date=todayStr()) {
 function deliveryKey(studentId, month, type, ref) {
   return `${studentId}|${month}|${type}|${ref}`;
 }
-export { milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade };
+function nextStudentRank(level,count,thresholds) {
+  if(level<4&&count>=thresholds[level+1])return level+1;
+  if(count>=thresholds[level])return level;
+  return Math.max(0,level-1);
+}
+function settleStudentRanks(data,month) {
+  if(!data.rankRules)return data;
+  data.rankMonth=data.rankMonth||month;
+  data.studentRanks=data.studentRanks||{};
+  data.rankHistory=data.rankHistory||{};
+  while(data.rankMonth<month) {
+    const old=data.rankMonth;
+    if(!data.rankHistory[old]) {
+      const totals={};
+      for(const d of data.draws)if(d.status==='承認済み'&&d.approvedAt?.slice(0,7)===old)totals[d.studentId]=(totals[d.studentId]||0)+(d.value||1);
+      const results={};
+      for(const student of data.students) {
+        const before=data.studentRanks[student.id]||0,count=totals[student.id]||0;
+        const after=nextStudentRank(before,count,data.rankRules);
+        data.studentRanks[student.id]=after;
+        results[student.id]={before,after,count};
+      }
+      data.rankHistory[old]={thresholds:[...data.rankRules],results};
+    }
+    const [y,m]=old.split('-').map(Number);
+    data.rankMonth=m===12?(y+1)+'-01':y+'-'+String(m+1).padStart(2,'0');
+  }
+  return data;
+}
+export { nextStudentRank, settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade };
