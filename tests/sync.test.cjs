@@ -36,6 +36,23 @@ async function call(body,token){const r=await ctx.handle(new Request('https://te
   assert.equal((await call({action:'initialize',requestId:'init',data},admin)).status,200);
   assert.equal((await call({action:'initialize',requestId:'init2',data},admin)).status,409);
   const student=(await call({action:'login',number:'A'})).token;
+  const currentDate=new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+  const expiredFixtures=[
+    {id:'expired-active',studentId:'s1',status:'進行中',deadline:'2000-01-01'},
+    {id:'expired-pending',studentId:'s1',status:'承認待ち',deadline:'2000-01-01'},
+    {id:'approved-keep',studentId:'s1',status:'承認済み',deadline:'2000-01-01'},
+    {id:'due-today',studentId:'s1',status:'進行中',deadline:currentDate},
+    {id:'no-deadline',studentId:'s1',status:'進行中',deadline:null}
+  ];
+  row.data.draws.push(...expiredFixtures);
+  const filtered=await call({action:'get',version:row.version},student);
+  assert.equal(filtered.unchanged,undefined);
+  assert.deepEqual(filtered.data.draws.map(d=>d.id),['approved-keep','due-today','no-deadline']);
+  assert.equal((await call({action:'get'},admin)).data.draws.length,5);
+  assert.equal(row.data.draws.length,5);
+  row.data.draws=[];
+  console.log('PASS: server hides expired active/pending missions even on same-version refresh; today, no deadline, approved stamps and admin history retained');
+
   assert.equal((await call({action:'save',requestId:'unauthorized',data,version:1},student)).status,403);
   const draw=await call({action:'draw',requestId:'draw1'},student);
   assert.equal(draw.status,200);assert.equal(draw.data.students[1].number,'');
