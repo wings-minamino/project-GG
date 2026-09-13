@@ -1564,19 +1564,18 @@ const STUDENT_RANK_COLORS=['#696969','#92552a','#596a7a','#8a6500','#256f78'];
 function StudentRankCard({rules,level=0,count=0,history={},studentId}) {
   const previous=shiftMonth(currentMonthKey(),-1),result=history[previous]?.results?.[studentId];
   const next=level<4?level+1:null;
-  return React.createElement('section',{style:{background:'#fff',border:'1px solid #e5dfd6',borderRadius:16,padding:20,marginBottom:20}},
-    React.createElement('div',{style:{fontSize:13,color:'#756b63'}},'現在のランク'),
-    React.createElement('strong',{style:{display:'block',fontSize:26,color:STUDENT_RANK_COLORS[level],margin:'6px 0'}},STUDENT_RANK_NAMES[level]),
-    !rules?React.createElement('p',null,'ランクの基準は先生が準備中です。'):React.createElement(React.Fragment,null,
-      React.createElement('p',{style:{margin:'8px 0'}},'今月のスタンプ：',React.createElement('strong',null,count),'個'),
-      React.createElement('p',{style:{margin:'8px 0',fontSize:14}},count>=rules[level]?'今月のランク維持基準を達成！':`維持まであと${rules[level]-count}個（基準${rules[level]}個）`),
-      next!==null?React.createElement('div',null,
-        React.createElement('p',{style:{margin:'8px 0',fontSize:14}},count>=rules[next]?`翌月の${STUDENT_RANK_NAMES[next]}昇格基準を達成！`:`${STUDENT_RANK_NAMES[next]}まであと${rules[next]-count}個（基準${rules[next]}個）`),
-        React.createElement('progress',{max:rules[next],value:Math.min(count,rules[next]),style:{width:'100%',accentColor:STUDENT_RANK_COLORS[next]}})):
-        React.createElement('p',null,'最上位のプラチナです！'),
-      React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginTop:12}},STUDENT_RANK_NAMES.map((name,i)=>React.createElement('span',{key:name,style:{fontSize:12,padding:'5px 8px',borderRadius:8,background:i===level?'#fff0d8':'#f5f3ef',color:STUDENT_RANK_COLORS[i]}},name,' ',rules[i],'個'))),
-      result&&React.createElement('p',{style:{fontSize:13}},formatMonth(previous),'の結果：',result.count,'個 ／ ',STUDENT_RANK_NAMES[result.before],' → ',STUDENT_RANK_NAMES[result.after]),
-      React.createElement('p',{style:{fontSize:12,color:'#756b63',marginBottom:0}},'月初に前月の結果で判定します。昇格・降格は1段階ずつ。表示は現在の基準に基づく目安です。')));
+  return React.createElement('section',{style:{background:'#fff',border:'1px solid #e5dfd6',borderRadius:10,padding:'10px 12px',marginBottom:12,fontSize:12,lineHeight:1.5}},
+    React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap'}},
+      React.createElement('div',null,React.createElement('span',{style:{color:'#756b63',marginRight:8}},'ランク'),React.createElement('strong',{style:{fontSize:18,color:STUDENT_RANK_COLORS[level]}},STUDENT_RANK_NAMES[level])),
+      rules&&React.createElement('span',null,'今月 ',React.createElement('strong',null,count),'個')),
+    !rules?React.createElement('div',{style:{marginTop:4}},'基準は先生が準備中です。'):React.createElement(React.Fragment,null,
+      React.createElement('div',{style:{marginTop:4}},count>=rules[level]?'維持基準クリア':`維持まであと${rules[level]-count}個`,' ／ ',next!==null?(count>=rules[next]?`翌月の${STUDENT_RANK_NAMES[next]}昇格基準クリア`:`${STUDENT_RANK_NAMES[next]}まであと${rules[next]-count}個`):'最上位ランク'),
+      next!==null&&React.createElement('progress',{max:rules[next],value:Math.min(count,rules[next]),style:{display:'block',height:5,width:'100%',marginTop:6,accentColor:STUDENT_RANK_COLORS[next]}}),
+      React.createElement('details',{style:{marginTop:5,color:'#756b63'}},
+        React.createElement('summary',{style:{cursor:'pointer',fontSize:11}},'基準・判定ルール'),
+        React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginTop:6}},STUDENT_RANK_NAMES.map((name,i)=>React.createElement('span',{key:name,style:{padding:'2px 5px',borderRadius:5,background:i===level?'#fff0d8':'#f5f3ef',color:STUDENT_RANK_COLORS[i]}},name,' ',rules[i],'個'))),
+        result&&React.createElement('div',{style:{marginTop:4}},formatMonth(previous),'：',result.count,'個 ／ ',STUDENT_RANK_NAMES[result.before],' → ',STUDENT_RANK_NAMES[result.after]),
+        React.createElement('div',{style:{marginTop:4}},'月初に前月の結果で判定。昇格・降格は1段階ずつで、飛び級はありません。表示は現在の基準に基づく目安です。'))));
 }
 function RankSettingsPanel({rules,ranks,history,students,onAction}) {
   const [draft,setDraft]=useState(()=>rules?rules.map(String):['0','','','','']);
