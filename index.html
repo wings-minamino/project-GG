@@ -1401,6 +1401,7 @@ function GachaMissionApp() {
     mySuggestions: mySuggestions,
     isMobile: isMobile
   })) : /*#__PURE__*/React.createElement(AdminView, {
+    studentCSVPanel:React.createElement(StudentCSVImport,{students,onAction:studentAction}),
     rankSystemPanel:React.createElement(RankSettingsPanel,{rules:rankRules,ranks:studentRanks,history:rankHistory,students,onAction:studentAction}),
     missionProposalPanel:React.createElement(MissionProposalPanel,{admin:true,proposals:missionSuggestions,onAction:studentAction}),
     missionProposalCount:missionSuggestions.filter(x=>x.status==='検討中').length,
@@ -2093,6 +2094,76 @@ function IssuedMissionHistory({ history, students, onCancel }) {
         d.cancelledAt && React.createElement("div", { style: styles.studentMeta }, "取消：", dateLabel(d.cancelledAt)));
     })));
 }
+function parseStudentCSV(text) {
+  text=text.replace(/^\uFEFF/,'');
+  const rows=[];let row=[],value='',quoted=false,closed=false;
+  for(let i=0;i<text.length;i++) {
+    const c=text[i];
+    if(quoted){if(c==='"'){if(text[i+1]==='"'){value+='"';i++;}else{quoted=false;closed=true;}}else value+=c;continue;}
+    if(c===','||c==='\n'||c==='\r') {row.push(value);value='';closed=false;if(c!==','){rows.push(row);row=[];if(c==='\r'&&text[i+1]==='\n')i++;}continue;}
+    if(closed){if(c===' '||c==='\t')continue;throw Error('引用符の後に不正な文字があります。CSV形式を確認してください。');}
+    if(c==='"'){if(value!=='')throw Error('引用符の位置が不正です。');quoted=true;}else value+=c;
+  }
+  if(quoted)throw Error('閉じられていない引用符があります。');
+  if(value!==''||row.length||closed)rows.push([...row,value]);
+  const records=rows.map((cells,i)=>({cells:cells.map(v=>v.trim()),row:i+1})).filter(x=>x.cells.some(Boolean));
+  if(!records.length)throw Error('CSVが空です。');
+  if(JSON.stringify(records.shift().cells)!==JSON.stringify(['生徒番号','生徒名','学校','学年']))throw Error('1行目は「生徒番号,生徒名,学校,学年」にしてください。');
+  if(!records.length)throw Error('登録する生徒がありません。');
+  if(records.length>1000)throw Error('一度に登録できるのは1000人までです。');
+  return records.map(({cells,row})=>{if(cells.length!==4)throw Error(`${row}行目：列数を4列にしてください。`);const [number,name,school,grade]=cells;return {number,name,school,grade,row};});
+}
+function studentImportErrors(rows,students) {
+  const existing=new Set(students.map(s=>s.number)),seen=new Set(),errors=[];
+  for(const s of rows) {
+    const prefix=s.row+'行目：';
+    if(!s.number||!s.name||!s.grade)errors.push(prefix+'生徒番号・生徒名・学年は必須です。');
+    if(!GRADE_LEVELS.includes(s.grade))errors.push(prefix+'学年は小1〜高3で入力してください。');
+    if(s.number.length>100||s.name.length>100||s.school.length>200||[s.number,s.name,s.school,s.grade].some(x=>/[\x00-\x1f\x7f]/.test(x)))errors.push(prefix+'文字数または改行・制御文字を確認してください。');
+    if(existing.has(s.number))errors.push(prefix+'この生徒番号は登録済みです。');
+    if(seen.has(s.number))errors.push(prefix+'CSV内で生徒番号が重複しています。');
+    seen.add(s.number);
+  }
+  return errors;
+}
+function StudentCSVImport({students,onAction}) {
+  const [rows,setRows]=useState([]),[error,setError]=useState(''),[message,setMessage]=useState(''),[encoding,setEncoding]=useState('utf-8'),[reading,setReading]=useState(false);
+  const sequence=useRef(0);
+  const errors=studentImportErrors(rows,students);
+  async function readFile(e) {
+    const file=e.target.files?.[0],version=++sequence.current;e.target.value='';setRows([]);setError('');setMessage('');
+    if(!file)return;
+    if(!/\.csv$/i.test(file.name)){setError('ExcelファイルはCSV UTF-8形式で保存してから選択してください。');return;}
+    if(file.size>2*1024*1024){setError('2MB以下のCSVを選択してください。');return;}
+    setReading(true);
+    try{const text=new TextDecoder(encoding,{fatal:true}).decode(await file.arrayBuffer());const parsed=parseStudentCSV(text);if(version===sequence.current)setRows(parsed);}
+    catch(e){if(version===sequence.current)setError(e instanceof TypeError?'文字コードを確認してください。CSV UTF-8で保存するか、Shift-JISを選択してください。':e.message);}
+    finally{if(version===sequence.current)setReading(false);}
+  }
+  async function commit() {
+    if(!rows.length||errors.length)return;
+    const result=await onAction('import_students',{students:rows.map(({number,name,school,grade})=>({number,name,school,grade}))});
+    if(result){setMessage(rows.length+'人を登録しました。');setRows([]);}
+  }
+  return React.createElement('section',{style:{padding:16,marginBottom:24,border:'1px solid #e5dfd6',borderRadius:12}},
+    React.createElement('h4',{style:{margin:'0 0 10px'}},'CSVで生徒を一括登録'),
+    React.createElement('p',{style:{fontSize:13,lineHeight:1.7}},'Excelの「生徒登録」シートをCSV UTF-8で保存して選択してください。読み込み・確認はこの端末内で行い、「一括登録」を押すと保存先へ送信します。既存の生徒は上書きしません。'),
+    React.createElement('div',{style:{display:'flex',gap:16,flexWrap:'wrap',marginBottom:12}},
+      React.createElement('a',{href:'./templates/student-import-template.xlsx',download:true},'Excel書式をダウンロード'),
+      React.createElement('a',{href:'./templates/student-import-template.csv',download:true},'CSV書式をダウンロード')),
+    React.createElement('label',null,'文字コード ',React.createElement('select',{value:encoding,onChange:e=>{sequence.current++;setEncoding(e.target.value);setRows([]);setError('');setReading(false);}},React.createElement('option',{value:'utf-8'},'UTF-8（推奨）'),React.createElement('option',{value:'shift_jis'},'Shift-JIS'))),
+    React.createElement('label',{style:{display:'block',marginTop:12}},'CSVを読み込む ',React.createElement('input',{type:'file',accept:'.csv,text/csv',onChange:readFile})),
+    reading&&React.createElement('p',null,'読み込み中…'),
+    error&&React.createElement('p',{role:'alert',style:{color:'#b42318'}},error),
+    rows.length>0&&React.createElement(React.Fragment,null,
+      React.createElement('p',null,rows.length,'人を確認してください。'),
+      errors.length>0&&React.createElement('div',{role:'alert',style:{color:'#b42318',maxHeight:150,overflowY:'auto'}},React.createElement('p',null,'次の項目を修正してCSVを読み込み直してください。まだ登録されていません。'),errors.map((e,i)=>React.createElement('div',{key:i},e))),
+      React.createElement('div',{style:{maxHeight:300,overflow:'auto',margin:'12px 0'}},React.createElement('table',{style:{width:'100%',textAlign:'left',fontSize:13}},React.createElement('thead',null,React.createElement('tr',null,['行','生徒番号','生徒名','学校','学年'].map(t=>React.createElement('th',{key:t,style:{padding:6,whiteSpace:'nowrap'}},t)))),React.createElement('tbody',null,rows.map((s,i)=>React.createElement('tr',{key:i},[s.row,s.number,s.name,s.school||'—',s.grade].map((v,j)=>React.createElement('td',{key:j,style:{padding:6}},v))))))),
+      React.createElement('button',{type:'button',style:styles.gachaBtnSmall,disabled:!!errors.length||reading,onClick:commit},rows.length+'人を一括登録'),
+      React.createElement('button',{type:'button',style:{marginLeft:12},onClick:()=>{sequence.current++;setRows([]);setError('');}},'取り消す')),
+    React.createElement('p',{role:'status'},message));
+}
+
 function AdminView(props) {
   const {
     adminTab,
@@ -2598,7 +2669,7 @@ function AdminView(props) {
     "aria-label": "\u524A\u9664"
   }, "\xD7"))), sortedMilestones.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: styles.emptyBox
-  }, "\u30B9\u30BF\u30F3\u30D7\u666F\u54C1\u3092\u8FFD\u52A0\u3057\u3066\u304F\u3060\u3055\u3044"))), adminTab === "students" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h4", {
+  }, "\u30B9\u30BF\u30F3\u30D7\u666F\u54C1\u3092\u8FFD\u52A0\u3057\u3066\u304F\u3060\u3055\u3044"))), adminTab === "students" && /*#__PURE__*/React.createElement("div", null, props.studentCSVPanel, /*#__PURE__*/React.createElement("h4", {
     style: styles.subHeading
   }, "\u751F\u5F92\u3092\u8FFD\u52A0"), /*#__PURE__*/React.createElement("div", {
     style: styles.newMissionForm

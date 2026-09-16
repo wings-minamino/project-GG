@@ -122,6 +122,19 @@ export async function handler(req) {
         validate(b.data);
         // This collection is managed by explicit actions; older clients must not erase it.
         data=derived({...b.data,missionSuggestions:data?.missionSuggestions||[],prizeClaims:data?.prizeClaims||{},rankPrizeMonth:data?.rankPrizeMonth||rewardMonth(),rankPrizeHistory:data?.rankPrizeHistory||{},rankRules:data?.rankRules||null,rankMonth:data?.rankMonth||null,studentRanks:data?.studentRanks||{},rankHistory:data?.rankHistory||{}});
+      } else if(b.action==='import_students') {
+        if(session.role!=='admin'||!data)fail(403,'管理者のみ操作できます');
+        if(!Array.isArray(b.students)||!b.students.length||b.students.length>1000||data.students.length+b.students.length>50000)fail(400,'一度に登録できるのは1〜1000人までです');
+        const seen=new Set(data.students.map(s=>s.number));
+        const added=[];
+        for(const [i,s] of b.students.entries()) {
+          if(!s||['number','name','school','grade'].some(k=>typeof s[k]!=='string'))fail(400,'CSVの項目を確認してください');
+          const {number,name,school,grade}=Object.fromEntries(['number','name','school','grade'].map(k=>[k,s[k].trim()]));
+          if(!number||!name||number.length>100||name.length>100||school.length>200||!["小1","小2","小3","小4","小5","小6","中1","中2","中3","高1","高2","高3"].includes(grade)||[number,name,school,grade].some(x=>/[\x00-\x1f\x7f]/.test(x)))fail(400,(i+1)+'人目の入力を確認してください');
+          if(seen.has(number))fail(409,(i+1)+'人目の生徒番号が登録済み、またはCSV内で重複しています');
+          seen.add(number);added.push({id:uid(),number,name,school,grade});
+        }
+        data.students.push(...added);result={imported:added.length};
       } else if(b.action==='set_rank_rules') {
         if(session.role!=='admin'||!data)fail(403,'管理者のみ操作できます');
         if(b.month!==rewardMonth()||JSON.stringify(b.expectedRules)!==JSON.stringify(data.rankRules||null))fail(409,'基準が更新されました。最新の画面で設定し直してください');
