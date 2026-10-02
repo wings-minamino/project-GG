@@ -1,12 +1,10 @@
 const CAPSULE_COLORS = ["#E4222A", "#FFC93C", "#2B2626", "#8C1116", "#6C6C74", "#FF6B6B"];
-const ADMIN_PASSWORD_SALT = [63, 206, 219, 96, 7, 115, 190, 181, 94, 233, 243, 214, 105, 219, 251, 21];
-const ADMIN_PASSWORD_HASH = "9a8628ec321f396f6d866d9138f45e20c075ed1c92f4a42302f4bb925ddaa2dc";
 async function deriveAdminPassword(password, salt) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits({
     name: "PBKDF2",
     salt: new Uint8Array(salt),
-    iterations: 100000,
+    iterations: 600000,
     hash: "SHA-256"
   }, key, 256);
   return Array.from(new Uint8Array(bits), b => b.toString(16).padStart(2, "0")).join("");
@@ -216,4 +214,4 @@ function settleStudentRanks(data,month) {
   }
   return data;
 }
-export { nextStudentRank, settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade };
+export { nextStudentRank, settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade };

@@ -1,7 +1,7 @@
-import {settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
+import {settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
 
 // Bearer-token authentication, no ambient cookies: also supports VS Code Live Server.
-const headers = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type, authorization','Access-Control-Allow-Methods':'POST, OPTIONS','Content-Type':'application/json','Cache-Control':'no-store'};
+const globalHeaders = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type, authorization','Access-Control-Allow-Methods':'POST, OPTIONS','Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
 const fail = (status,message) => { throw Object.assign(new Error(message),{status}); };
 async function db(path,method='GET',body) {
   const key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -11,6 +11,21 @@ async function db(path,method='GET',body) {
 }
 async function hash(s) {return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s))),b=>b.toString(16).padStart(2,'0')).join('');}
 const uid=()=>crypto.randomUUID();
+async function credential(role) {
+  const c=(await db('gg_credentials?role=eq.'+role))[0];
+  if(!c)fail(503,'ログイン設定を準備中です');
+  return c;
+}
+async function matches(password,c) {
+  if(typeof password!=='string'||password.length>200)return false;
+  const actual=await deriveAdminPassword(password,c.salt);
+  let diff=actual.length^c.password_hash.length;
+  for(let i=0;i<actual.length;i++)diff|=actual.charCodeAt(i)^c.password_hash.charCodeAt(i);
+  return diff===0;
+}
+async function limit(key) {
+  if(!await db('rpc/gg_login_attempt','POST',{bucket:await hash(key)}))fail(429,'操作回数が多いため、5分後にお試しください。');
+}
 function rewardMonth() {return new Date(Date.now()+9*3600000).toISOString().slice(0,7);}
 function closeRankMonths(data,month=rewardMonth()) {
   data.rankPrizeHistory=data.rankPrizeHistory||{};
@@ -63,7 +78,8 @@ function derived(data) {
 function view(row,session) {
   if(!row.data) return {version:row.version,data:null};
   if(session.role==='admin') return {version:row.version,data:row.data};
-  const d=structuredClone(row.data),id=session.student_id;
+  const allowed=['missions','draws','students','rankPrizes','rankPrizeMonth','rankPrizeHistory','rankRules','rankMonth','studentRanks','rankHistory','milestonePrizes','deliveries','prizeClaims','hiddenMissions','testMissions','achievements','prizeSuggestions','missionSuggestions','lastPromotionYear','dailyPullLimit'];
+  const d=structuredClone(Object.fromEntries(allowed.filter(k=>Object.hasOwn(row.data,k)).map(k=>[k,row.data[k]]))),id=session.student_id;
   d.missionSuggestions=(d.missionSuggestions||[]).filter(x=>x.studentId===id);
   if(!d.students.some(s=>s.id===id)) fail(401,'生徒の登録が変更されました。ログインし直してください。');
   d.students=d.students.map(s=>s.id===id?s:{id:s.id,name:s.name,number:'',school:'',grade:''});
@@ -75,45 +91,69 @@ function view(row,session) {
   d.prizeClaims=Object.fromEntries(Object.entries(d.prizeClaims||{}).filter(([,claim])=>claim.studentId===id));
   d.studentRanks={[id]:d.studentRanks?.[id]||0};
   d.rankHistory=Object.fromEntries(Object.entries(d.rankHistory||{}).map(([month,h])=>[month,{...h,results:h.results?.[id]?{[id]:h.results[id]}:{}}]));
+  d.rankPrizeHistory=Object.fromEntries(Object.entries(d.rankPrizeHistory||{}).map(([month,h])=>[month,{prizes:h.prizes,finalizedAt:h.finalizedAt,earned:(h.earned||[]).filter(e=>e.studentId===id)}]));
   d.hiddenMissions=[]; d.testMissions=[];
   return {version:row.version,data:d};
 }
 export async function handler(req) {
+  const origin=req.headers.get('origin');
+  const allowedOrigin=!origin||origin==='https://wings-minamino.github.io'||/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  if(!allowedOrigin)return Response.json({error:'許可されていない接続元です'},{status:403,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
+  const headers={...globalHeaders,'Access-Control-Allow-Origin':origin||'https://wings-minamino.github.io','Vary':'Origin'};
   if(req.method==='OPTIONS') return new Response('ok',{headers});
   try {
     if(req.method!=='POST') fail(405,'POST required');
     const raw=await req.text(); if(raw.length>5000000) fail(413,'データが大きすぎます');
-    const b=JSON.parse(raw);
-    let row=(await db('gg_state?id=eq.1'))[0];
+    let b;try{b=JSON.parse(raw);}catch{fail(400,'JSON形式を確認してください');}
+    if(!b||typeof b!=='object'||Array.isArray(b))fail(400,'データ形式を確認してください');
+    let row;
     if(b.action==='login') {
-      const bucket=await hash((req.headers.get('x-forwarded-for')||'unknown').split(',')[0]);
-      if(!await db('rpc/gg_login_attempt','POST',{bucket})) fail(429,'ログイン回数が多いため、5分後にお試しください。');
+      if(!['admin','student'].includes(b.role))fail(400,'ログイン種別を確認してください');
+      await limit('ip:'+ (req.headers.get('x-forwarded-for')||'unknown').split(',')[0]);
+      // Account-level throttling also holds if a client spoofs its forwarded IP.
+      await limit('account:'+b.role+':'+(b.role==='admin'?'admin':String(b.number).slice(0,100)));
+      const c=await credential(b.role);
+      if(!await matches(b.password,c))fail(401,'ログイン情報を確認してください');
+      row=(await db('gg_state?id=eq.1'))[0];
       let session;
-      if(b.role==='admin') {
-        if(typeof b.password!=='string'||b.password.length>200||(await deriveAdminPassword(b.password,ADMIN_PASSWORD_SALT))!==ADMIN_PASSWORD_HASH) fail(401,'パスワードが違います');
-        session={role:'admin',student_id:null};
-      } else {
-        if(!row.data) fail(409,'先生がデータ共有を準備中です');
+      if(b.role==='admin')session={role:'admin',student_id:null,credential_version:c.version};
+      else {
+        if(!row.data)fail(409,'先生がデータ共有を準備中です');
         const s=row.data.students.find(s=>s.number===b.number);
-        if(!s) fail(401,'生徒番号を確認してください');
-        session={role:'student',student_id:s.id};
+        if(!s)fail(401,'ログイン情報を確認してください');
+        session={role:'student',student_id:s.id,credential_version:c.version};
       }
       const token=uid()+uid();
       row=await settleRankMonths(row);
       await db('gg_sessions','POST',{...session,token_hash:await hash(token),expires_at:new Date(Date.now()+12*3600000).toISOString()});
-      return Response.json({...view(row,session),token,role:session.role,studentId:session.student_id},{headers});
+      return Response.json({...(!b.sessionOnly?view(row,session):{}),token,role:session.role,studentId:session.student_id},{headers});
     }
     const token=(req.headers.get('authorization')||'').replace(/^Bearer /,'');
-    if(!token) fail(401,'ログインしてください');
+    if(!/^[0-9a-f-]{72}$/.test(token)) fail(401,'ログインしてください');
     const tokenHash=await hash(token);
     const session=(await db('gg_sessions?token_hash=eq.'+tokenHash+'&expires_at=gt.'+encodeURIComponent(new Date().toISOString())))[0];
-    if(!session) fail(401,'ログインの有効期限が切れました。ログインし直してください。');
+    if(!session||!['admin','student'].includes(session.role)||session.credential_version!==(await credential(session.role)).version) fail(401,'ログインの有効期限が切れました。ログインし直してください。');
     if(b.action==='logout'){await db('gg_sessions?token_hash=eq.'+tokenHash,'DELETE');return Response.json({ok:true},{headers});}
-    row=await settleRankMonths(row);
+    if(b.action==='change_password') {
+      if(session.role!=='admin')fail(403,'管理者のみ操作できます');
+      await limit('password-change:admin');
+      const current=await credential('admin');
+      if(!await matches(b.currentPassword,current))fail(401,'現在の管理者パスワードを確認してください');
+      if(!['admin','student'].includes(b.targetRole)||typeof b.password!=='string'||b.password.length<16||b.password.length>128)fail(400,'新しいパスワードは16〜128文字で入力してください');
+      const old=await credential(b.targetRole);
+      const salt=Array.from(crypto.getRandomValues(new Uint8Array(16)));
+      const changed=await db('gg_credentials?role=eq.'+b.targetRole+'&version=eq.'+old.version,'PATCH',{salt,password_hash:await deriveAdminPassword(b.password,salt),version:uid()});
+      if(!changed.length)fail(409,'別の管理者が更新しました。もう一度ログインしてください');
+      return Response.json({ok:true},{headers});
+    }
+    row=await settleRankMonths((await db('gg_state?id=eq.1'))[0]);
     if(b.action==='get') return Response.json(session.role==='admin'&&b.version===row.version?{version:row.version,unchanged:true}:view(row,session),{headers});
     if(typeof b.requestId!=='string'||b.requestId.length>100) fail(400,'requestId required');
+    const requestOwner=session.role+':'+(session.student_id||'admin');
+    if(session.role==='student')await limit('mutation:'+session.student_id);
     for(let attempt=0;attempt<5;attempt++) {
-      if(row.requests.some(x=>x.id===b.requestId)) return Response.json({...view(row,session),result:row.requests.find(x=>x.id===b.requestId).result},{headers});
+      const previous=row.requests.find(x=>x.id===b.requestId&&x.owner===requestOwner&&x.action===b.action);
+      if(previous)return Response.json({...view(row,session),result:previous.result},{headers});
       let data=structuredClone(row.data),result=null;
       if(b.action==='save'||b.action==='initialize') {
         if(session.role!=='admin') fail(403,'管理者のみ操作できます');
@@ -174,7 +214,7 @@ export async function handler(req) {
           data.draws.push(result);
         } else if(b.action==='report') {
           const d=data.draws.find(d=>d.id===b.id&&d.studentId===id);
-          if(!d||d.status!=='進行中') fail(409,'ミッションの状態が変わりました');
+          if(!d||d.status!=='進行中'||(d.deadline&&d.deadline<todayStr())) fail(409,'ミッションの状態が変わりました');
           d.status='承認待ち';
         } else if(b.action==='claim_prize') {
           if(typeof b.month!=='string'||!/^\d{4}-(0[1-9]|1[0-2])$/.test(b.month)||b.month>rewardMonth()) fail(400,'対象月を確認してください');
@@ -203,7 +243,7 @@ export async function handler(req) {
         derived(data);
       }
       if(data.rankPrizeMonth!==rewardMonth()) {row=await settleRankMonths((await db('gg_state?id=eq.1'))[0]);continue;}
-      const saved=await db('gg_state?id=eq.1&version=eq.'+row.version,'PATCH',{version:row.version+1,data,requests:[...row.requests,{id:b.requestId,result}].slice(-1000)});
+      const saved=await db('gg_state?id=eq.1&version=eq.'+row.version,'PATCH',{version:row.version+1,data,requests:[...row.requests,{id:b.requestId,owner:requestOwner,action:b.action,result}].slice(-1000)});
       if(saved.length) return Response.json({...view(saved[0],session),result},{headers});
       row=await settleRankMonths((await db('gg_state?id=eq.1'))[0]);
     }

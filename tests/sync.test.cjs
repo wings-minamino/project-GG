@@ -5,11 +5,16 @@ const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const helpers=fs.readFileSync(root+'/supabase/functions/gg-api/helpers.js','utf8').replace(/export \{[^}]+\};/,'').replace(/function uid\(prefix\) \{[^}]+\}/,'');
 const source=fs.readFileSync(root+'/supabase/functions/gg-api/index.js','utf8').replace(/^import[^\n]+\n/,'').replace('export async function handler','async function handler').replace('Deno.serve(handler);','');
+const testPassword='Test-only-password-987654!';
+const testSalt=Array(16).fill(12);
+const testHash=require('node:crypto').pbkdf2Sync(testPassword,Buffer.from(testSalt),600000,32,'sha256').toString('hex');
+let credentials=['admin','student'].map(role=>({role,salt:testSalt,password_hash:testHash,version:'test-version'}));
 let row={id:1,version:0,data:null,requests:[]},sessions=[],collide=false;
 async function dbFetch(url,opts){
   const u=new URL(url),table=u.pathname.split('/').at(-1),b=opts.body?JSON.parse(opts.body):null;
   let result;
-  if(table==='gg_login_attempt')result=true;
+  if(table==='gg_credentials'){const c=credentials.find(c=>c.role===u.searchParams.get('role').slice(3));if(opts.method==='PATCH'){if(u.searchParams.get('version').slice(3)!==c.version)result=[];else{Object.assign(c,b);result=[c];}}else result=c?[c]:[];}
+  else if(table==='gg_login_attempt')result=true;
   else if(table==='gg_sessions'){
     if(opts.method==='POST'){sessions.push(b);result=[b];}
     else if(opts.method==='DELETE'){sessions=sessions.filter(s=>s.token_hash!==u.searchParams.get('token_hash').slice(3));result=[];}
@@ -25,17 +30,33 @@ async function dbFetch(url,opts){
 }
 const ctx=vm.createContext({crypto:globalThis.crypto,TextEncoder,Response,Request,fetch:dbFetch,Deno:{env:{get:()=> 'https://example.test'}},structuredClone,Date,console});
 vm.runInContext(helpers+'\n'+source+'\nglobalThis.handle=handler;',ctx);
-async function call(body,token){const r=await ctx.handle(new Request('https://test/',{method:'POST',headers:token?{Authorization:'Bearer '+token}:{},body:JSON.stringify(body)}));return {status:r.status,...await r.json()};}
+async function rawCall(body,token){const r=await ctx.handle(new Request('https://test/',{method:'POST',headers:token?{Authorization:'Bearer '+token}:{},body:JSON.stringify(body)}));return {status:r.status,...await r.json()};}
+async function call(body,token){if(body.action==='login'&&body.number!==undefined)body={role:'student',password:testPassword,...body};return rawCall(body,token);}
 (async()=>{
   assert.equal((await call({action:'get'})).status,401);
   assert.equal((await call({action:'login',role:'admin',password:'wrong'})).status,401);
   // The password is test input only; public frontend never authenticates writes itself.
-  const login=await call({action:'login',role:'admin',password:String.fromCharCode(109,105,110,97,109,105,110,111)});
+  const login=await call({action:'login',role:'admin',password:testPassword});
   assert.equal(login.status,200);const admin=login.token;
   const data={students:[{id:'s1',name:'One',number:'A',grade:'小1'},{id:'s2',name:'Two',number:'B',grade:'小2'}],missions:[{id:'m1',text:'課題',deadlineDays:3}],draws:[],rankPrizes:{'1':'景品'},milestonePrizes:[],deliveries:{},hiddenMissions:[],testMissions:[],achievements:[],prizeSuggestions:[],dailyPullLimit:1,lastPromotionYear:2026};
   assert.equal((await call({action:'initialize',requestId:'init',data},admin)).status,200);
   assert.equal((await call({action:'initialize',requestId:'init2',data},admin)).status,409);
   const student=(await call({action:'login',number:'A'})).token;
+  assert.equal((await rawCall({action:'login',role:'student',number:'A'})).status,401);
+  assert.equal((await rawCall({action:'login',role:'student',number:'A',password:'wrong'})).status,401);
+  assert.equal((await rawCall({action:'login',role:'invalid',password:testPassword})).status,400);
+  assert.equal((await rawCall(null)).status,400);
+  const beforeLegacy=sessions[0].credential_version; sessions[0].credential_version=null;
+  assert.equal((await call({action:'get'},admin)).status,401);sessions[0].credential_version=beforeLegacy;
+  row.data.privateFutureField={secret:'must-not-leak'};
+  row.data.rankPrizeHistory={'2026-08':{earned:[{studentId:'s1',label:'own'},{studentId:'s2',label:'other'}],prizes:{},finalizedAt:'2026-09-01'}};
+  const privateView=await call({action:'get'},student);
+  assert.equal(privateView.data.privateFutureField,undefined);
+  assert.equal(privateView.data.rankPrizeHistory['2026-08'].earned.length,1);
+  delete row.data.privateFutureField;row.data.rankPrizeHistory={};
+  assert.equal((await call({action:'change_password',targetRole:'admin',currentPassword:testPassword,password:'aaaaaaaaaaaaaaaa'},student)).status,403);
+  assert.equal((await call({action:'change_password',targetRole:'admin',currentPassword:'wrong',password:'aaaaaaaaaaaaaaaa'},admin)).status,401);
+  console.log('PASS: student password required, legacy sessions revoked, student response allowlist, private prize history, password change permissions');
   const currentDate=new Date(Date.now()+9*3600000).toISOString().slice(0,10);
   const expiredFixtures=[
     {id:'expired-active',studentId:'s1',status:'進行中',deadline:'2000-01-01'},
@@ -60,6 +81,7 @@ async function call(body,token){const r=await ctx.handle(new Request('https://te
   assert.equal(row.data.draws.length,1);
   assert.equal((await call({action:'draw',requestId:'draw2'},student)).status,400);
   const other=(await call({action:'login',number:'B'})).token;
+  const replay=await call({action:'draw',requestId:'draw1'},other);assert.notEqual(replay.result.id,draw.result.id);row.data.draws=row.data.draws.filter(d=>d.id!==replay.result.id);
   assert.equal((await call({action:'report',requestId:'report-other',id:draw.result.id},other)).status,409);
   assert.equal((await call({action:'report',requestId:'report',id:draw.result.id},student)).status,200);
   const staleVersion=row.version,staleData=structuredClone(row.data);
@@ -266,6 +288,12 @@ async function call(body,token){const r=await ctx.handle(new Request('https://te
   ctx.existingStudents=[{number:'0001'}];assert.ok(vm.runInContext('studentImportErrors(importRows,existingStudents).length',ctx)>0);
   ctx.csv='生徒番号,生徒名,学校,学年\n0001,"未完了';assert.throws(()=>vm.runInContext('parseStudentCSV(csv)',ctx));
   console.log('PASS: admin-only atomic CSV import, validation/duplicate rejection, retry safety, leading zeros, BOM, quoted commas, escaped quotes, blank rows and preview checks');
+  const rotated=await call({action:'change_password',targetRole:'student',currentPassword:testPassword,password:'New-test-only-password-123!'},admin);
+  assert.equal(rotated.status,200);
+  assert.equal((await call({action:'get'},student)).status,401);
+  assert.equal((await call({action:'login',number:'A'})).status,401);
+  assert.equal((await call({action:'login',number:'A',password:'New-test-only-password-123!'})).status,200);
+  console.log('PASS: password rotation revokes sessions and rejects the old password');
   ctx.Date=Date;
   await call({action:'logout'},student);
   assert.equal((await call({action:'get'},student)).status,401);
