@@ -112,8 +112,9 @@ export async function handler(req) {
       await limit('ip:'+ (req.headers.get('x-forwarded-for')||'unknown').split(',')[0]);
       // Account-level throttling also holds if a client spoofs its forwarded IP.
       await limit('account:'+b.role+':'+(b.role==='admin'?'admin':String(b.number).slice(0,100)));
+      if(b.role==='student'&&(typeof b.number!=='string'||!b.number||b.number.length>100))fail(401,'生徒番号を確認してください');
       const c=await credential(b.role);
-      if(!await matches(b.password,c))fail(401,'ログイン情報を確認してください');
+      if(b.role==='admin'&&!await matches(b.password,c))fail(401,'ログイン情報を確認してください');
       row=(await db('gg_state?id=eq.1'))[0];
       let session;
       if(b.role==='admin')session={role:'admin',student_id:null,credential_version:c.version};
@@ -139,7 +140,7 @@ export async function handler(req) {
       await limit('password-change:admin');
       const current=await credential('admin');
       if(!await matches(b.currentPassword,current))fail(401,'現在の管理者パスワードを確認してください');
-      if(!['admin','student'].includes(b.targetRole)||typeof b.password!=='string'||b.password.length<16||b.password.length>128)fail(400,'新しいパスワードは16〜128文字で入力してください');
+      if(b.targetRole!=='admin'||typeof b.password!=='string'||b.password.length<16||b.password.length>128)fail(400,'新しいパスワードは16〜128文字で入力してください');
       const old=await credential(b.targetRole);
       const salt=Array.from(crypto.getRandomValues(new Uint8Array(16)));
       const changed=await db('gg_credentials?role=eq.'+b.targetRole+'&version=eq.'+old.version,'PATCH',{salt,password_hash:await deriveAdminPassword(b.password,salt),version:uid()});

@@ -31,7 +31,7 @@ async function dbFetch(url,opts){
 const ctx=vm.createContext({crypto:globalThis.crypto,TextEncoder,Response,Request,fetch:dbFetch,Deno:{env:{get:()=> 'https://example.test'}},structuredClone,Date,console});
 vm.runInContext(helpers+'\n'+source+'\nglobalThis.handle=handler;',ctx);
 async function rawCall(body,token){const r=await ctx.handle(new Request('https://test/',{method:'POST',headers:token?{Authorization:'Bearer '+token}:{},body:JSON.stringify(body)}));return {status:r.status,...await r.json()};}
-async function call(body,token){if(body.action==='login'&&body.number!==undefined)body={role:'student',password:testPassword,...body};return rawCall(body,token);}
+async function call(body,token){if(body.action==='login'&&body.number!==undefined)body={role:'student',...body};return rawCall(body,token);}
 (async()=>{
   assert.equal((await call({action:'get'})).status,401);
   assert.equal((await call({action:'login',role:'admin',password:'wrong'})).status,401);
@@ -42,10 +42,12 @@ async function call(body,token){if(body.action==='login'&&body.number!==undefine
   assert.equal((await call({action:'initialize',requestId:'init',data},admin)).status,200);
   assert.equal((await call({action:'initialize',requestId:'init2',data},admin)).status,409);
   const student=(await call({action:'login',number:'A'})).token;
-  assert.equal((await rawCall({action:'login',role:'student',number:'A'})).status,401);
-  assert.equal((await rawCall({action:'login',role:'student',number:'A',password:'wrong'})).status,401);
+  assert.equal((await rawCall({action:'login',role:'student',number:'A'})).status,200);
+  assert.equal((await rawCall({action:'login',role:'student',number:'A',password:'wrong'})).status,200);
   assert.equal((await rawCall({action:'login',role:'invalid',password:testPassword})).status,400);
   assert.equal((await rawCall(null)).status,400);
+  assert.equal((await call({action:'login',number:'missing'})).status,401);
+  assert.equal((await call({action:'login',role:'admin'})).status,401);
   const beforeLegacy=sessions[0].credential_version; sessions[0].credential_version=null;
   assert.equal((await call({action:'get'},admin)).status,401);sessions[0].credential_version=beforeLegacy;
   row.data.privateFutureField={secret:'must-not-leak'};
@@ -56,7 +58,7 @@ async function call(body,token){if(body.action==='login'&&body.number!==undefine
   delete row.data.privateFutureField;row.data.rankPrizeHistory={};
   assert.equal((await call({action:'change_password',targetRole:'admin',currentPassword:testPassword,password:'aaaaaaaaaaaaaaaa'},student)).status,403);
   assert.equal((await call({action:'change_password',targetRole:'admin',currentPassword:'wrong',password:'aaaaaaaaaaaaaaaa'},admin)).status,401);
-  console.log('PASS: student password required, legacy sessions revoked, student response allowlist, private prize history, password change permissions');
+  console.log('PASS: number-only student login, admin password required, legacy sessions revoked, student response allowlist, private prize history, password change permissions');
   const currentDate=new Date(Date.now()+9*3600000).toISOString().slice(0,10);
   const expiredFixtures=[
     {id:'expired-active',studentId:'s1',status:'進行中',deadline:'2000-01-01'},
@@ -288,12 +290,15 @@ async function call(body,token){if(body.action==='login'&&body.number!==undefine
   ctx.existingStudents=[{number:'0001'}];assert.ok(vm.runInContext('studentImportErrors(importRows,existingStudents).length',ctx)>0);
   ctx.csv='生徒番号,生徒名,学校,学年\n0001,"未完了';assert.throws(()=>vm.runInContext('parseStudentCSV(csv)',ctx));
   console.log('PASS: admin-only atomic CSV import, validation/duplicate rejection, retry safety, leading zeros, BOM, quoted commas, escaped quotes, blank rows and preview checks');
-  const rotated=await call({action:'change_password',targetRole:'student',currentPassword:testPassword,password:'New-test-only-password-123!'},admin);
+  assert.equal((await call({action:'change_password',targetRole:'student',currentPassword:testPassword,password:'Unused-password-123!'},admin)).status,400);
+  const rotated=await call({action:'change_password',targetRole:'admin',currentPassword:testPassword,password:'New-test-only-password-123!'},admin);
   assert.equal(rotated.status,200);
-  assert.equal((await call({action:'get'},student)).status,401);
-  assert.equal((await call({action:'login',number:'A'})).status,401);
-  assert.equal((await call({action:'login',number:'A',password:'New-test-only-password-123!'})).status,200);
-  console.log('PASS: password rotation revokes sessions and rejects the old password');
+  assert.equal((await call({action:'get'},admin)).status,401);
+  assert.equal((await call({action:'login',role:'admin',password:testPassword})).status,401);
+  assert.equal((await call({action:'login',role:'admin',password:'New-test-only-password-123!'})).status,200);
+  assert.equal((await call({action:'get'},student)).status,200);
+  assert.equal((await call({action:'login',number:'A'})).status,200);
+  console.log('PASS: admin password rotation revokes admin sessions; student sessions and number-only login remain usable');
   ctx.Date=Date;
   await call({action:'logout'},student);
   assert.equal((await call({action:'get'},student)).status,401);
