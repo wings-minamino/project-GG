@@ -2,12 +2,12 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-v0efdDXTMx86G+vMQkwPovz+7vvhSofZr+psXiHWU0M='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-jrdi3fmSrZyGtCI4C/TfCazBQ0mhcC1yenC0xBQzCqw='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ガチャミッション</title>
-<link rel="apple-touch-icon" href="./icons/project-gg.png">
-<link rel="icon" type="image/png" href="./icons/project-gg.png">
+<title>プロジェクトGG 講師用</title>
+<link rel="apple-touch-icon" href="../icons/project-gg.png">
+<link rel="icon" type="image/png" href="../icons/project-gg.png">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="プロジェクトGG">
 <meta name="theme-color" content="#000000">
@@ -331,7 +331,7 @@ const {
   useMemo,
   useRef
 } = React;
-const IS_ADMIN_PORTAL = false;
+const IS_ADMIN_PORTAL = true;
 const PORTAL_ROLE = IS_ADMIN_PORTAL ? "admin" : "student";
 const STORAGE_KEY = "gacha-mission:data";
 const STUDENT_NUMBER_KEY = 'gacha-mission:last-student-number';
@@ -2171,8 +2171,8 @@ function StudentCSVImport({students,onAction}) {
     React.createElement('h4',{style:{margin:'0 0 10px'}},'CSVで生徒を一括登録'),
     React.createElement('p',{style:{fontSize:13,lineHeight:1.7}},'Excelの「生徒登録」シートをCSV UTF-8で保存して選択してください。読み込み・確認はこの端末内で行い、「一括登録」を押すと保存先へ送信します。既存の生徒は上書きしません。'),
     React.createElement('div',{style:{display:'flex',gap:16,flexWrap:'wrap',marginBottom:12}},
-      React.createElement('a',{href:'./templates/student-import-template.xlsx',download:true},'Excel書式をダウンロード'),
-      React.createElement('a',{href:'./templates/student-import-template.csv',download:true},'CSV書式をダウンロード')),
+      React.createElement('a',{href:'../templates/student-import-template.xlsx',download:true},'Excel書式をダウンロード'),
+      React.createElement('a',{href:'../templates/student-import-template.csv',download:true},'CSV書式をダウンロード')),
     React.createElement('label',null,'文字コード ',React.createElement('select',{value:encoding,onChange:e=>{sequence.current++;setEncoding(e.target.value);setRows([]);setError('');setReading(false);}},React.createElement('option',{value:'utf-8'},'UTF-8（推奨）'),React.createElement('option',{value:'shift_jis'},'Shift-JIS'))),
     React.createElement('label',{style:{display:'block',marginTop:12}},'CSVを読み込む ',React.createElement('input',{type:'file',accept:'.csv,text/csv',onChange:readFile})),
     reading&&React.createElement('p',null,'読み込み中…'),
