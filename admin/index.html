@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-NWjqD0SvMm/3Nu7loTIUpCJLum5B/TrxUpTVBoJpFYg='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-gT3BAS+POwmxV8xKLRdf6mkXa8jkPKLTMPPfI3P2aLs='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プロジェクトGG 講師用</title>
@@ -1363,6 +1363,7 @@ function GachaMissionApp() {
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.brand
   }, /*#__PURE__*/React.createElement("img", {
+    className:"gg-brand-logo",
     src: LOGO_DATA_URI,
     alt: "\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8GG \u6311\u6226\u8005\u305F\u3061",
     style: {
@@ -1773,6 +1774,7 @@ function LoginScreen({
   }, /*#__PURE__*/React.createElement("div", {
     style: { ...styles.loginBrand, marginBottom: isMobile ? 22 : 36 }
   }, /*#__PURE__*/React.createElement("img", {
+    className:"gg-brand-logo",
     src: LOGO_DATA_URI,
     alt: "\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8GG \u6311\u6226\u8005\u305F\u3061",
     style: {
@@ -3058,6 +3060,7 @@ function AdminView(props) {
   }, rankPrizes[String(i + 1)]))))));
 }
 const css = `
+  .halloween-theme .gg-brand-logo { mix-blend-mode:screen; }
   .halloween-theme { border-color:#40284c!important; min-height:100dvh!important; }
   .halloween-theme .gg-login-wrap { background:radial-gradient(ellipse at 18% 15%,#51345e 0,transparent 48%),radial-gradient(ellipse at 85% 90%,#48232d 0,transparent 45%),#191320!important; }
   .halloween-theme .gg-login-card { background:#211829!important; border:1px solid #795044!important; box-shadow:0 18px 70px #08050b66; }
