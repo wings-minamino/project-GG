@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-gT3BAS+POwmxV8xKLRdf6mkXa8jkPKLTMPPfI3P2aLs='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-0iWtDtkJ7yCyOf4mD/QiuIrp7E8VwTrVzH+kSlww6b0='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プロジェクトGG 講師用</title>
@@ -337,13 +337,18 @@ function isHalloweenSeason(now=Date.now(),admin=IS_ADMIN_PORTAL) {
   return !admin && now>=Date.parse('2026-10-01T00:00:00+09:00') && now<Date.parse('2026-11-01T00:00:00+09:00');
 }
 function HalloweenBanner({compact=false}) {
-  return React.createElement('div',{className:'halloween-banner'+(compact?' halloween-compact':'')},
-    React.createElement('div',null,React.createElement('span',{className:'halloween-eyebrow'},'OCTOBER 2026'),React.createElement('div',{className:'halloween-title'},'Happy Halloween'),React.createElement('span',{className:'halloween-caption'},'10月限定のハロウィンデザイン')),
-    React.createElement('svg',{viewBox:'0 0 110 100',width:90,height:82,'aria-hidden':true,focusable:false},
-      React.createElement('path',{d:'M55 27 Q50 10 66 9',fill:'none',stroke:'#a3b56f',strokeWidth:8,strokeLinecap:'round'}),
-      React.createElement('ellipse',{cx:55,cy:59,rx:46,ry:34,fill:'#ed7b24'}),
-      React.createElement('ellipse',{cx:55,cy:59,rx:27,ry:35,fill:'#ff9e3b'}),
-      React.createElement('path',{d:'M30 54 L42 41 L46 55 Z M65 55 L70 41 L82 54 Z M35 68 L47 74 L55 69 L63 74 L77 66 Q65 91 46 81 Z',fill:'#2e193e'})));
+  const h=React.createElement;
+  return h('div',{className:'halloween-banner'+(compact?' halloween-compact':'')},
+    h('div',{className:'halloween-copy'},h('span',{className:'halloween-eyebrow'},'OCTOBER 2026 · SPECIAL DESIGN'),
+      h('div',{className:'halloween-title'},h('span',{className:'halloween-happy'},'HAPPY'),h('span',null,'HALLOWEEN')),
+      h('span',{className:'halloween-caption'},'ちょっぴり不思議な、10月の教室。')),
+    h('svg',{className:'halloween-scene',viewBox:'0 0 190 150',width:190,height:150,'aria-hidden':true,focusable:false},
+      h('path',{d:'M137 8 A30 30 0 1 0 168 46 A28 28 0 0 1 137 8',fill:'#f7d989'}),
+      h('g',{fill:'#ccb4ee'},h('path',{d:'M35 13v10m-5-5h10',stroke:'#ccb4ee',strokeWidth:2}),h('circle',{cx:91,cy:12,r:2}),h('circle',{cx:177,cy:77,r:2})),
+      h('path',{d:'M67 35 Q51 19 43 27 L44 40 L28 35 Q36 55 53 51 L60 57 L65 48 Q84 51 95 36 L77 41 L80 27 Z',fill:'#120c21',stroke:'#9b74ba',strokeWidth:1.4}),
+      h('g',{className:'halloween-ghost'},h('path',{d:'M117 116 V83 C117 56 154 54 154 83 V116 L145 110 L137 118 L127 110 Z',fill:'#fff5ed',stroke:'#d8bde5',strokeWidth:2}),h('ellipse',{cx:129,cy:82,rx:3,ry:5,fill:'#352248'}),h('ellipse',{cx:143,cy:82,rx:3,ry:5,fill:'#352248'}),h('ellipse',{cx:136,cy:95,rx:4,ry:5,fill:'#352248'}),h('circle',{cx:122,cy:92,r:3,fill:'#f7b7ba'}),h('circle',{cx:150,cy:92,r:3,fill:'#f7b7ba'})),
+      h('g',{transform:'translate(7 50)'},h('path',{d:'M55 27 Q50 10 66 9',fill:'none',stroke:'#c1d978',strokeWidth:8,strokeLinecap:'round'}),h('ellipse',{cx:55,cy:59,rx:46,ry:34,fill:'#ed7b24'}),h('ellipse',{cx:55,cy:59,rx:27,ry:35,fill:'#ff9e3b'}),h('path',{d:'M30 54 L42 41 L46 55 Z M65 55 L70 41 L82 54 Z M35 68 L47 74 L55 69 L63 74 L77 66 Q65 91 46 81 Z',fill:'#2e193e'})),
+      h('g',{fill:'none',stroke:'#b9a4d5',strokeWidth:1,opacity:0.65},h('path',{d:'M190 0L146 0 M190 0L148 42 M190 0V55 M175 0Q177 10 190 15 M160 0Q165 23 190 30 M148 0Q152 36 190 46'}))));
 }
 const STORAGE_KEY = "gacha-mission:data";
 const STUDENT_NUMBER_KEY = 'gacha-mission:last-student-number';
@@ -1385,7 +1390,7 @@ function GachaMissionApp() {
       ...styles.main,
       padding: isMobile ? "14px 14px" : "22px 26px"
     }
-  }, role === "student" ? /*#__PURE__*/React.createElement("div", null, isHalloweenSeason(suggestionNow)&&React.createElement(HalloweenBanner), /*#__PURE__*/React.createElement("div", {
+  }, role === "student" ? /*#__PURE__*/React.createElement("div", {className:"gg-student-content"}, isHalloweenSeason(suggestionNow)&&React.createElement(HalloweenBanner), /*#__PURE__*/React.createElement("div", {
     className:"gg-student-tabs",
     style: styles.studentTabs
   }, /*#__PURE__*/React.createElement("button", {
@@ -3084,6 +3089,39 @@ const css = `
   .halloween-theme .halloween-compact .halloween-title { font-size:25px; }
   .halloween-theme .halloween-compact svg { width:65px; height:64px; }
   @media(max-width:400px) { .halloween-theme .halloween-banner { padding:16px; gap:10px; } .halloween-theme .halloween-banner svg { width:60px; height:60px; } .halloween-theme .halloween-compact .halloween-title { font-size:22px; } }
+
+  .halloween-theme .gg-login-wrap { background:radial-gradient(circle at 10% 15%,#ff9d2b22 0,transparent 32%),radial-gradient(circle at 90% 80%,#8b39cb55 0,transparent 42%),#140e20!important; }
+  .halloween-theme .gg-login-card { position:relative; border:2px solid #9254ac!important; background:#281a39!important; box-shadow:0 0 0 7px #ff9c2f0c,0 20px 80px #0008; }
+  .halloween-theme .gg-login-card::before { content:''; position:absolute; top:0; left:0; width:72px; height:72px; border-radius:inherit; pointer-events:none; opacity:.5; background:repeating-radial-gradient(circle at 0 0,transparent 0 16px,#c1a3df 17px 18px,transparent 19px 26px); clip-path:polygon(0 0,100% 0,0 100%); }
+  .halloween-theme .gg-main { background:radial-gradient(ellipse at 90% 0,#58336e 0,transparent 50%),#201429!important; }
+  .halloween-theme .gg-student-content { background:#fff8ef; border:1px solid #dba563; border-radius:18px; padding:18px; box-shadow:0 8px 32px #0e071e55; }
+  .halloween-theme .gg-topbar { background:#170f20!important; border-bottom:2px solid #d6812f!important; }
+  .halloween-theme .gg-primary { background:linear-gradient(135deg,#b44d0c,#9c3517)!important; border:1px solid #df8e3b!important; border-radius:14px!important; box-shadow:0 4px 0 #642044,0 5px 15px #40112d33; }
+  .halloween-theme .gg-student-tabs { background:#eee1f4; padding:5px; border-radius:13px; gap:5px; }
+  .halloween-theme .gg-stamp-box { border:2px dashed #d88135!important; }
+  .halloween-theme .gg-stamp-filled { border-radius:35% 45% 38% 42%!important; box-shadow:inset -3px -3px 0 #782c1b40; }
+  .halloween-theme .halloween-banner { position:relative; min-height:170px; padding:24px; border:2px solid #b77bd2; background:radial-gradient(ellipse at 80% 25%,#683976 0,transparent 60%),#271434; box-shadow:0 4px 0 #ec963c; margin-bottom:25px; }
+  .halloween-theme .halloween-copy { position:relative; z-index:1; min-width:0; }
+  .halloween-theme .halloween-title { display:flex; flex-direction:column; font-family:Georgia,serif; font-size:clamp(24px,3.6vw,40px); color:#ffb54c; line-height:1.12; letter-spacing:1px; text-shadow:2px 3px 0 #130a1c,-1px -1px 0 #130a1c; transform:rotate(-3deg); margin:10px 0; }
+  .halloween-theme .halloween-happy { font-size:14px; letter-spacing:6px; color:#e3f298; margin-bottom:5px; }
+  .halloween-theme .halloween-eyebrow { font-size:9px; letter-spacing:1.5px; color:#e3c6f4; }
+  .halloween-theme .halloween-caption { font-size:11px; color:#fff0dc; }
+  .halloween-theme .halloween-banner .halloween-scene { width:170px; height:145px; flex-shrink:0; overflow:visible; }
+  .halloween-theme .halloween-ghost { animation:ggGhostFloat 4s ease-in-out infinite; }
+  .halloween-theme .halloween-compact { min-height:140px; padding:18px; }
+  .halloween-theme .halloween-compact .halloween-title { font-size:28px; }
+  .halloween-theme .halloween-compact .halloween-scene { width:125px; height:120px; }
+  @keyframes ggGhostFloat { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-6px); } }
+  @media(max-width:480px) {
+    .halloween-theme .gg-student-content { padding:12px; }
+    .halloween-theme .halloween-banner { min-height:146px; padding:16px 12px; gap:4px; }
+    .halloween-theme .halloween-banner .halloween-title { font-size:25px; letter-spacing:0; }
+    .halloween-theme .halloween-banner .halloween-scene { width:95px; height:112px; }
+    .halloween-theme .halloween-eyebrow { font-size:8px; letter-spacing:.4px; }
+    .halloween-theme .halloween-caption { max-width:150px; font-size:10px; line-height:1.6; }
+  }
+  @media(max-width:350px) { .halloween-theme .halloween-banner .halloween-scene { width:70px; } .halloween-theme .halloween-banner .halloween-title { font-size:22px; } }
+  @media(prefers-reduced-motion:reduce) { .halloween-theme .halloween-ghost { animation:none; } }
 
   * { box-sizing: border-box; }
   button, select, input { font-family: 'Noto Sans JP', sans-serif; }
