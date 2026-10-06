@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-O04W/DfPLjkUBZnnogQA7pUaIoEJv7dNuhallOOJwto='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-M040ZmN1waIaEFrJ6FcNS2sEK7S9fTUYPDYtmBGX4Ng='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ガチャミッション</title>
@@ -666,6 +666,7 @@ function GachaMissionApp() {
   const [gachaResult, setGachaResult] = useState(null);
   const [gachaPhase, setGachaPhase] = useState("idle"); // idle | shaking | dropping | cracking | done
   const gachaTimeouts = useRef([]);
+  const gachaDrawing = useRef(false);
   const [newMissionText, setNewMissionText] = useState("");
   const [newMissionDeadline, setNewMissionDeadline] = useState("3");
   const [newMissionTargetGroup, setNewMissionTargetGroup] = useState("");
@@ -960,20 +961,37 @@ function GachaMissionApp() {
     api({action:'logout'}).catch(()=>{});c.token=null;c.baseline=null;c.generation++;setLoaded(false);
     setRole(null);
     setCurrentStudentId(null);
+    gachaTimeouts.current.forEach(clearTimeout);
     setGachaResult(null);
     setGachaPhase("idle");
     setShowAdminLogin(false);
     setAdminPasswordInput("");
     setAdminLoginError("");
   }
+  function skipGachaAnimation() {
+    gachaTimeouts.current.forEach(clearTimeout);
+    gachaTimeouts.current=[];
+    setGachaPhase('done');
+  }
   async function pullGacha() {
-    if(gachaPhase!=='idle'&&gachaPhase!=='done')return;
-    const result=await studentAction('draw');if(!result)return;
-    const draw=result.result;
-    setGachaResult(draw);
-    setGachaPhase("shaking");
-    gachaTimeouts.current.forEach(t => clearTimeout(t));
-    gachaTimeouts.current = [setTimeout(() => setGachaPhase("dropping"), 550), setTimeout(() => setGachaPhase("cracking"), 550 + 550), setTimeout(() => setGachaPhase("done"), 550 + 550 + 400)];
+    if(gachaDrawing.current || (gachaPhase!=='idle'&&gachaPhase!=='done'))return;
+    gachaDrawing.current=true;
+    const generation=cloud.current.generation;
+    setGachaResult(null);setGachaPhase('waiting');
+    try {
+      const result=await studentAction('draw');
+      if(generation!==cloud.current.generation)return;
+      if(!result){setGachaPhase('idle');return;}
+      setGachaResult(result.result);
+      gachaTimeouts.current.forEach(clearTimeout);
+      if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){setGachaPhase('done');return;}
+      setGachaPhase('shaking');
+      gachaTimeouts.current=[
+        setTimeout(()=>setGachaPhase('dropping'),900),
+        setTimeout(()=>setGachaPhase('cracking'),1700),
+        setTimeout(()=>setGachaPhase('done'),2400)
+      ];
+    } finally {gachaDrawing.current=false;}
   }
   function reportDone(drawId) {studentAction('report',{id:drawId});}
   function approveDraw(drawId) {
@@ -1415,6 +1433,7 @@ function GachaMissionApp() {
     pullGacha: pullGacha,
     gachaResult: gachaResult,
     gachaPhase: gachaPhase,
+    skipGachaAnimation,
     myActive: myActive,
     reportDone: reportDone,
     studentMonth: studentMonth,
@@ -1867,6 +1886,21 @@ function HalloweenCoinAdmin({coins,students,onAction,distribution=false}) {
     message&&h('p',{role:'status'},message));
 }
 
+function GachaReveal({phase,result,onSkip}) {
+  const h=React.createElement;
+  if(phase==='idle')return null;
+  const done=phase==='done',coin=done&&result?.coinReward;
+  if(done&&(!result||isDrawOverdue(result)))return null;
+  const caption={waiting:'ガチャを準備しています…',shaking:'カプセルをまぜまぜ…',dropping:'コロン！カプセルが出てきた！',cracking:'せーの…オープン！'}[phase];
+  return h('section',{className:'gg-reveal gg-reveal-'+phase+(coin?' gg-reveal-coin':''),'aria-label':'ガチャの結果'},
+    h('div',{className:'gg-reveal-rays','aria-hidden':true}),
+    h('div',{className:'gg-reveal-sparkles','aria-hidden':true},...Array.from({length:12},(_,i)=>h('span',{key:i,style:{'--i':i}},i%3===0?'★':'✦'))),
+    !done&&h('div',{className:'gg-reveal-capsule','aria-hidden':true,style:{'--capsule-color':result?.color||'#9951df'}},h('span',{className:'gg-capsule-top'}),h('span',{className:'gg-capsule-bottom'}),h('b',{className:'gg-capsule-symbol'},'★')),
+    h('div',{className:'gg-reveal-copy',role:'status','aria-live':'polite','aria-atomic':true},
+      done?h(React.Fragment,null,h('span',{className:'gg-reveal-badge'},coin?'SPECIAL BONUS':'MISSION GET!'),h('div',{className:'gg-reveal-icon','aria-hidden':true},coin?'★':'🎃'),h('h3',null,coin?'コイン1枚 当選！':'ミッションが届いた！'),h('p',{className:'gg-reveal-mission'},result.missionText),h('p',{className:'gg-reveal-hint'},coin?'お菓子ガチャに挑戦できるよ！先生からコインを受け取ってね。':'クリアしたら「達成を報告」を押してね。')):h('p',{className:'gg-reveal-caption'},caption)),
+    !done&&phase!=='waiting'&&onSkip&&h('button',{type:'button',className:'gg-reveal-skip',onClick:onSkip},'演出をスキップ'));
+}
+
 function StudentMissionView({
   coinPanel,coinSpent=0,
   rankPanel,
@@ -1875,6 +1909,7 @@ function StudentMissionView({
   pullGacha,
   gachaResult,
   gachaPhase,
+  skipGachaAnimation,
   myActive,
   reportDone,
   studentMonth,
@@ -1890,13 +1925,13 @@ function StudentMissionView({
   const stampSlots = Math.max(stampCols * 2, Math.ceil(myStampsThisMonth / stampCols) * stampCols);
   const sortedMilestones = useMemo(() => studentMonth==='2026-10'?[]:[...milestonePrizes].sort((a, b) => a.threshold - b.threshold), [milestonePrizes,studentMonth]);
   const nextMilestone = sortedMilestones.find(mp => mp.threshold > myStampsThisMonth);
-  const isAnimating = gachaPhase === "shaking" || gachaPhase === "dropping" || gachaPhase === "cracking";
+  const isAnimating = gachaPhase === "waiting" || gachaPhase === "shaking" || gachaPhase === "dropping" || gachaPhase === "cracking";
   const limitReached = dailyPullLimit > 0 && myTodayPullCount >= dailyPullLimit;
   const canPull = missionsAvailable > 0 && !isAnimating && !limitReached;
   return /*#__PURE__*/React.createElement("div", {className:"gg-mission-page"}, rankPanel,coinPanel, /*#__PURE__*/React.createElement("h2", {
     style: styles.greeting
   }, studentName, "\u3055\u3093\u3001\u3088\u3046\u3053\u305D"), /*#__PURE__*/React.createElement("div", {
-    className:"gg-gacha-scene",
+    className:"gg-gacha-scene gg-phase-"+gachaPhase,
     style: {
       ...styles.gachaBox,
       padding: isMobile ? "18px 14px" : "26px 20px"
@@ -1910,7 +1945,7 @@ function StudentMissionView({
     className:"gg-machine-wrap",
     style: {
       ...styles.machineWrap,
-      animation: gachaPhase === "shaking" ? "shake 0.55s ease-in-out" : "none"
+      animation: gachaPhase === "shaking" ? "shake 0.45s ease-in-out infinite" : "none"
     },
     onClick: canPull ? pullGacha : undefined
   }, /*#__PURE__*/React.createElement("img", {
@@ -1923,37 +1958,13 @@ function StudentMissionView({
     style: styles.gachaBtn,
     onClick: pullGacha,
     disabled: !canPull
-  }, isAnimating ? "抽選中..." : React.createElement(React.Fragment,null,React.createElement("span",{className:"gg-default-pull-label"},"ガチャを引く"),React.createElement("span",{className:"gg-halloween-pull-label"},"ミッションを引く",React.createElement("span",{"aria-hidden":true}," ›")))), dailyPullLimit > 0 && /*#__PURE__*/React.createElement("div", {
+  }, isAnimating ? (gachaPhase==='waiting'?"ガチャを準備中…":"ドキドキ…何が出るかな？") : React.createElement(React.Fragment,null,React.createElement("span",{className:"gg-default-pull-label"},"ガチャを引く"),React.createElement("span",{className:"gg-halloween-pull-label"},"ミッションを引く",React.createElement("span",{"aria-hidden":true}," ›")))), dailyPullLimit > 0 && /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
   }, "\u672C\u65E5\u306E\u30AC\u30C1\u30E3: ", Math.min(myTodayPullCount, dailyPullLimit), " / ", dailyPullLimit, "\u56DE"), missionsAvailable === 0 && /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
   }, "\u4ECA\u306F\u3042\u306A\u305F\u304C\u5F15\u3051\u308B\u30DF\u30C3\u30B7\u30E7\u30F3\u304C\u3042\u308A\u307E\u305B\u3093"), missionsAvailable > 0 && limitReached && /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
-  }, "\u672C\u65E5\u306E\u30AC\u30C1\u30E3\u4E0A\u9650\u306B\u9054\u3057\u307E\u3057\u305F\u3002\u307E\u305F\u660E\u65E5\u6311\u6226\u3057\u3066\u304F\u3060\u3055\u3044\u3002"), (gachaPhase === "dropping" || gachaPhase === "cracking") && gachaResult && /*#__PURE__*/React.createElement("div", {
-    style: styles.capsuleStage
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...styles.capsuleBall,
-      background: `linear-gradient(to bottom, #ffffffd9 0%, #ffffffd9 46%, ${gachaResult.color} 50%, ${gachaResult.color} 100%)`,
-      borderColor: gachaResult.color,
-      animation: gachaPhase === "dropping" ? "dropBounce 0.55s cubic-bezier(.34,1.56,.64,1)" : "crackOpen 0.4s ease-in forwards"
-    }
-  })), gachaPhase === "done" && gachaResult && !isDrawOverdue(gachaResult) && /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...styles.resultCard,
-      borderColor: gachaResult.color,
-      animation: "pop 0.3s ease-out"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...styles.resultCapsule,
-      background: gachaResult.color
-    }
-  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: styles.resultLabel
-  }, gachaResult.coinReward?"🎉 コイン当選！":"あたらしいミッション"), /*#__PURE__*/React.createElement("div", {
-    style: styles.resultText
-  }, gachaResult.missionText),gachaResult.coinReward&&React.createElement("p",null,"コイン1枚を獲得しました！先生から受け取ってください。")))), /*#__PURE__*/React.createElement("div", {
+  }, "\u672C\u65E5\u306E\u30AC\u30C1\u30E3\u4E0A\u9650\u306B\u9054\u3057\u307E\u3057\u305F\u3002\u307E\u305F\u660E\u65E5\u6311\u6226\u3057\u3066\u304F\u3060\u3055\u3044\u3002"), React.createElement(GachaReveal,{phase:gachaPhase,result:gachaResult,onSkip:skipGachaAnimation})), /*#__PURE__*/React.createElement("div", {
     className:"gg-section-head",
     style: styles.sectionHead
   }, /*#__PURE__*/React.createElement("h3", {
@@ -3430,6 +3441,46 @@ const css = `
   button, select, input { font-family: 'Noto Sans JP', sans-serif; }
   button:disabled { opacity: 0.5; cursor: default; }
   select:focus, input:focus, button:focus { outline: 2px solid #E4222A; outline-offset: 1px; }
+
+  .gg-reveal { position:relative; isolation:isolate; overflow:hidden; margin:20px auto 0; padding:24px 16px; border:2px solid #b788e2; border-radius:22px; background:radial-gradient(ellipse at center,#643093,#21103d 78%); color:#fff7dc; text-align:center; min-height:170px; box-sizing:border-box; }
+  .gg-reveal-copy { position:relative; z-index:2; }
+  .gg-reveal-caption { font-weight:800; font-size:clamp(16px,4vw,22px); margin:12px 0; color:#fff7dc!important; }
+  .gg-reveal-skip { position:relative; z-index:3; border:1px solid #d6bee9; color:#fff!important; background:#31144f; border-radius:20px; padding:9px 18px; cursor:pointer; font-size:13px; }
+  .gg-reveal-capsule { position:relative; width:90px; height:90px; margin:12px auto 28px; filter:drop-shadow(0 8px 12px #10051e); }
+  .gg-capsule-top,.gg-capsule-bottom { position:absolute; left:0; width:100%; height:50%; box-sizing:border-box; border:3px solid #fff9; }
+  .gg-capsule-top { top:0; border-radius:90px 90px 0 0; background:linear-gradient(135deg,#fff,#e8d9fcaa); }
+  .gg-capsule-bottom { bottom:0; border-radius:0 0 90px 90px; background:linear-gradient(140deg,#dca6ff,var(--capsule-color)); }
+  .gg-capsule-symbol { position:absolute; inset:25px 0 auto; font-size:30px; color:#ffe46e; text-shadow:0 2px 3px #512272; }
+  .gg-reveal-waiting .gg-reveal-capsule { animation:ggCapsuleBob 1s ease-in-out infinite; }
+  .gg-reveal-shaking .gg-reveal-capsule { animation:shake .45s ease-in-out infinite; }
+  .gg-reveal-dropping .gg-reveal-capsule { animation:ggCapsuleDrop .8s both; }
+  .gg-reveal-cracking .gg-capsule-top { animation:ggLidOpen .7s both; }
+  .gg-reveal-cracking .gg-capsule-bottom { animation:ggBaseOpen .7s both; }
+  .gg-reveal-cracking .gg-capsule-symbol { animation:ggStarGrow .7s both; }
+  .gg-reveal-rays { position:absolute; inset:-80%; z-index:-1; pointer-events:none; background:repeating-conic-gradient(from 0deg,#ffd76d16 0deg 12deg,transparent 12deg 30deg); }
+  .gg-reveal-done .gg-reveal-rays { animation:ggRayTurn 12s linear 1; }
+  .gg-reveal-done { animation:ggRevealIn .55s cubic-bezier(.2,.8,.3,1) both; }
+  .gg-reveal-badge { display:inline-block; letter-spacing:.12em; color:#ffe184; font-size:12px; font-weight:900; }
+  .gg-reveal-icon { font-size:48px; margin:8px 0; }
+  .gg-reveal h3 { color:#fff2b8!important; font-size:clamp(20px,5vw,28px); margin:8px 0 14px; line-height:1.4; }
+  .gg-reveal .gg-reveal-mission { background:#fff7e7; color:#28123f!important; border-radius:14px; padding:16px; font-size:clamp(17px,4vw,23px); font-weight:800; line-height:1.65; overflow-wrap:anywhere; margin:12px 0; }
+  .gg-reveal .gg-reveal-hint { color:#fff2d8!important; font-size:14px; line-height:1.7; margin:10px 0 0; }
+  .gg-reveal-coin { border:3px solid #ffd65c; background:radial-gradient(ellipse at top,#9e560e,#3f175b 85%); box-shadow:0 0 24px #ffb83666; }
+  .gg-reveal-coin .gg-reveal-icon { width:72px; height:72px; margin:12px auto; border-radius:50%; line-height:64px; box-sizing:border-box; border:5px double #fff0a4; color:#814109; background:linear-gradient(135deg,#fff4ae,#ffc333 65%,#df851c); box-shadow:0 5px 0 #a45b15; animation:ggCoinPop .7s both; }
+  .gg-reveal-sparkles { pointer-events:none; position:absolute; inset:0; }
+  .gg-reveal-sparkles span { position:absolute; color:#fddc80; left:calc(5% + var(--i)*8%); top:12%; opacity:0; }
+  .gg-reveal-done .gg-reveal-sparkles span { animation:ggConfetti 1.7s ease-out both; animation-delay:calc(var(--i)*.035s); }
+  .gg-phase-shaking .gg-gacha-spark { animation-duration:.4s!important; }
+  @keyframes ggCapsuleBob { 50% { transform:translateY(-8px); } }
+  @keyframes ggCapsuleDrop { 0%{transform:translateY(-100px) rotate(-30deg);opacity:0} 55%{transform:translateY(10px) rotate(10deg);opacity:1} 78%{transform:translateY(-14px) rotate(-6deg)} 100%{transform:none} }
+  @keyframes ggLidOpen { to { transform:translate(-20px,-34px) rotate(-25deg); opacity:0; } }
+  @keyframes ggBaseOpen { to { transform:translate(18px,25px) rotate(20deg); opacity:0; } }
+  @keyframes ggStarGrow { to { transform:scale(3); opacity:0; } }
+  @keyframes ggRayTurn { to { transform:rotate(100deg); } }
+  @keyframes ggRevealIn { from { opacity:0; transform:translateY(12px) scale(.96); } to { opacity:1; transform:none; } }
+  @keyframes ggCoinPop { from { transform:scale(.3) rotate(-30deg); } 65% { transform:scale(1.2) rotate(8deg); } to { transform:none; } }
+  @keyframes ggConfetti { 0%{opacity:0;transform:translateY(-15px) scale(.5)} 20%{opacity:1} 100%{opacity:0;transform:translateY(210px) rotate(150deg)} }
+  @media(prefers-reduced-motion:reduce) { .gg-reveal *, .gg-reveal, .gg-machine-wrap { animation:none!important; } }
   @keyframes pop { 0% { transform: scale(0.85); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
   @keyframes shake { 0%, 100% { transform: translateX(0) rotate(0deg); } 20% { transform: translateX(-5px) rotate(-4deg); } 40% { transform: translateX(5px) rotate(4deg); } 60% { transform: translateX(-4px) rotate(-3deg); } 80% { transform: translateX(4px) rotate(3deg); } }
   @keyframes dropBounce { 0% { transform: translateY(-46px) scale(0.8); opacity: 0; } 55% { transform: translateY(6px) scale(1.05); opacity: 1; } 75% { transform: translateY(-4px) scale(0.98); } 100% { transform: translateY(0) scale(1); } }
