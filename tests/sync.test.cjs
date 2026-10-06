@@ -2,9 +2,10 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const assert=require('node:assert/strict');
 const path=require('node:path');
+const Date=class extends globalThis.Date {constructor(...args){super(...(args.length?args:['2026-09-06T12:00:00Z']));}static now(){return globalThis.Date.parse('2026-09-06T12:00:00Z');}};
 const root=path.resolve(__dirname,'..');
 const helpers=fs.readFileSync(root+'/supabase/functions/gg-api/helpers.js','utf8').replace(/export \{[^}]+\};/,'').replace(/function uid\(prefix\) \{[^}]+\}/,'');
-const source=fs.readFileSync(root+'/supabase/functions/gg-api/index.js','utf8').replace(/^import[^\n]+\n/,'').replace('export async function handler','async function handler').replace('Deno.serve(handler);','');
+const source=fs.readFileSync(root+'/supabase/functions/gg-api/index.js','utf8').replace(/^import[^\n]+\n/gm,'').replace('export async function handler','async function handler').replace('Deno.serve(handler);','');
 const testPassword='Test-only-password-987654!';
 const testSalt=Array(16).fill(12);
 const testHash=require('node:crypto').pbkdf2Sync(testPassword,Buffer.from(testSalt),600000,32,'sha256').toString('hex');
@@ -28,8 +29,9 @@ async function dbFetch(url,opts){
   }else throw Error(table);
   return Response.json(result);
 }
-const ctx=vm.createContext({crypto:globalThis.crypto,TextEncoder,Response,Request,fetch:dbFetch,Deno:{env:{get:()=> 'https://example.test'}},structuredClone,Date,console});
-vm.runInContext(helpers+'\n'+source+'\nglobalThis.handle=handler;',ctx);
+const ctx=vm.createContext({crypto:{subtle:globalThis.crypto.subtle,randomUUID:()=>globalThis.crypto.randomUUID(),getRandomValues:a=>a instanceof Uint32Array&&a.length===1?a.fill(4294967295):globalThis.crypto.getRandomValues(a)},Uint32Array,TextEncoder,Response,Request,fetch:dbFetch,Deno:{env:{get:()=> 'https://example.test'}},structuredClone,Date,console});
+const coins=fs.readFileSync(root+'/supabase/functions/gg-api/coins.js','utf8').replace(/^import[^\n]+\n/gm,'').replace(/export \{[^}]+\};/,'');
+vm.runInContext(helpers+'\n'+coins+'\n'+source+'\nglobalThis.handle=handler;',ctx);
 async function rawCall(body,token){const r=await ctx.handle(new Request('https://test/',{method:'POST',headers:token?{Authorization:'Bearer '+token}:{},body:JSON.stringify(body)}));return {status:r.status,...await r.json()};}
 async function call(body,token){if(body.action==='login'&&body.number!==undefined)body={role:'student',...body};return rawCall(body,token);}
 (async()=>{

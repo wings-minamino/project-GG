@@ -1,3 +1,4 @@
+import {COIN_MONTH,coinSeason,coinState,coinSummary,recordCoinVisit,coinChance} from './coins.js';
 import {settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
 
 // Bearer-token authentication, no ambient cookies: also supports VS Code Live Server.
@@ -11,6 +12,17 @@ async function db(path,method='GET',body) {
 }
 async function hash(s) {return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s))),b=>b.toString(16).padStart(2,'0')).join('');}
 const uid=()=>crypto.randomUUID();
+async function settleCoinVisit(row,session){
+  if(session.role!=='student'||!coinSeason())return row;
+  for(let attempt=0;attempt<5;attempt++){
+    const data=structuredClone(row.data);
+    if(!data||!recordCoinVisit(data,session.student_id))return row;
+    const saved=await db('gg_state?id=eq.1&version=eq.'+row.version,'PATCH',{version:row.version+1,data});
+    if(saved.length)return saved[0];
+    row=(await db('gg_state?id=eq.1'))[0];
+  }
+  fail(409,'ログイン記録を更新中です。もう一度お試しください。');
+}
 async function credential(role) {
   const c=(await db('gg_credentials?role=eq.'+role))[0];
   if(!c)fail(503,'ログイン設定を準備中です');
@@ -78,7 +90,7 @@ function derived(data) {
 function view(row,session) {
   if(!row.data) return {version:row.version,data:null};
   if(session.role==='admin') return {version:row.version,data:row.data};
-  const allowed=['missions','draws','students','rankPrizes','rankPrizeMonth','rankPrizeHistory','rankRules','rankMonth','studentRanks','rankHistory','milestonePrizes','deliveries','prizeClaims','hiddenMissions','testMissions','achievements','prizeSuggestions','missionSuggestions','lastPromotionYear','dailyPullLimit'];
+  const allowed=['halloweenCoins','missions','draws','students','rankPrizes','rankPrizeMonth','rankPrizeHistory','rankRules','rankMonth','studentRanks','rankHistory','milestonePrizes','deliveries','prizeClaims','hiddenMissions','testMissions','achievements','prizeSuggestions','missionSuggestions','lastPromotionYear','dailyPullLimit'];
   const d=structuredClone(Object.fromEntries(allowed.filter(k=>Object.hasOwn(row.data,k)).map(k=>[k,row.data[k]]))),id=session.student_id;
   d.missionSuggestions=(d.missionSuggestions||[]).filter(x=>x.studentId===id);
   if(!d.students.some(s=>s.id===id)) fail(401,'生徒の登録が変更されました。ログインし直してください。');
@@ -92,6 +104,7 @@ function view(row,session) {
   d.studentRanks={[id]:d.studentRanks?.[id]||0};
   d.rankHistory=Object.fromEntries(Object.entries(d.rankHistory||{}).map(([month,h])=>[month,{...h,results:h.results?.[id]?{[id]:h.results[id]}:{}}]));
   d.rankPrizeHistory=Object.fromEntries(Object.entries(d.rankPrizeHistory||{}).map(([month,h])=>[month,{prizes:h.prizes,finalizedAt:h.finalizedAt,earned:(h.earned||[]).filter(e=>e.studentId===id)}]));
+  d.halloweenCoins={stampCost:coinState(row.data).stampCost,entries:coinState(row.data).entries.filter(e=>e.studentId===id)};
   d.hiddenMissions=[]; d.testMissions=[];
   return {version:row.version,data:d};
 }
@@ -125,7 +138,7 @@ export async function handler(req) {
         session={role:'student',student_id:s.id,credential_version:c.version};
       }
       const token=uid()+uid();
-      row=await settleRankMonths(row);
+      row=await settleCoinVisit(await settleRankMonths(row),session);
       await db('gg_sessions','POST',{...session,token_hash:await hash(token),expires_at:new Date(Date.now()+12*3600000).toISOString()});
       return Response.json({...(!b.sessionOnly?view(row,session):{}),token,role:session.role,studentId:session.student_id},{headers});
     }
@@ -147,11 +160,12 @@ export async function handler(req) {
       if(!changed.length)fail(409,'別の管理者が更新しました。もう一度ログインしてください');
       return Response.json({ok:true},{headers});
     }
-    row=await settleRankMonths((await db('gg_state?id=eq.1'))[0]);
+    row=await settleCoinVisit(await settleRankMonths((await db('gg_state?id=eq.1'))[0]),session);
     if(b.action==='get') return Response.json(session.role==='admin'&&b.version===row.version?{version:row.version,unchanged:true}:view(row,session),{headers});
     if(typeof b.requestId!=='string'||b.requestId.length>100) fail(400,'requestId required');
     const requestOwner=session.role+':'+(session.student_id||'admin');
     if(session.role==='student')await limit('mutation:'+session.student_id);
+    const coinRoll=crypto.getRandomValues(new Uint32Array(1))[0]/4294967296;
     for(let attempt=0;attempt<5;attempt++) {
       const previous=row.requests.find(x=>x.id===b.requestId&&x.owner===requestOwner&&x.action===b.action);
       if(previous)return Response.json({...view(row,session),result:previous.result},{headers});
@@ -162,7 +176,19 @@ export async function handler(req) {
         if(b.action==='save'&&(!data||b.version!==row.version)) fail(409,'別の端末で更新されました。最新情報を確認してもう一度操作してください。');
         validate(b.data);
         // This collection is managed by explicit actions; older clients must not erase it.
-        data=derived({...b.data,missionSuggestions:data?.missionSuggestions||[],prizeClaims:data?.prizeClaims||{},rankPrizeMonth:data?.rankPrizeMonth||rewardMonth(),rankPrizeHistory:data?.rankPrizeHistory||{},rankRules:data?.rankRules||null,rankMonth:data?.rankMonth||null,studentRanks:data?.studentRanks||{},rankHistory:data?.rankHistory||{}});
+        data=derived({...b.data,halloweenCoins:data?.halloweenCoins||{stampCost:null,entries:[],loginDays:{}},draws:[...b.data.draws.filter(d=>!d.coinReward),...(data?.draws||[]).filter(d=>d.coinReward)],missionSuggestions:data?.missionSuggestions||[],prizeClaims:data?.prizeClaims||{},rankPrizeMonth:data?.rankPrizeMonth||rewardMonth(),rankPrizeHistory:data?.rankPrizeHistory||{},rankRules:data?.rankRules||null,rankMonth:data?.rankMonth||null,studentRanks:data?.studentRanks||{},rankHistory:data?.rankHistory||{}});
+      } else if(b.action==='set_coin_cost') {
+        if(session.role!=='admin'||!data)fail(403,'管理者のみ操作できます');
+        if(!coinSeason())fail(403,'10月限定の設定です');
+        const c=coinState(data);
+        if(b.expectedCost!==c.stampCost)fail(409,'交換条件が変更されました。更新してやり直してください');
+        if(!Number.isSafeInteger(b.stampCost)||b.stampCost<1||b.stampCost>10000)fail(400,'スタンプ数は1〜10000個の整数にしてください');
+        data.halloweenCoins={...c,stampCost:b.stampCost};
+      } else if(b.action==='deliver_coin') {
+        if(session.role!=='admin'||!data)fail(403,'管理者のみ操作できます');
+        const e=coinState(data).entries.find(e=>e.id===b.id);
+        if(!e)fail(404,'コインの記録がありません');
+        if(!e.deliveredAt)e.deliveredAt=new Date().toISOString();
       } else if(b.action==='import_students') {
         if(session.role!=='admin'||!data)fail(403,'管理者のみ操作できます');
         if(!Array.isArray(b.students)||!b.students.length||b.students.length>1000||data.students.length+b.students.length>50000)fail(400,'一度に登録できるのは1〜1000人までです');
@@ -207,12 +233,28 @@ export async function handler(req) {
         const id=session.student_id,student=data.students.find(s=>s.id===id);
         if(!student) fail(401,'生徒の登録が変更されました');
         if(b.action==='draw') {
+          const priorDraw=data.draws.find(d=>d.studentId===id&&d.drawRequestId===b.requestId);
+          if(priorDraw)return Response.json({...view(row,session),result:priorDraw},{headers});
           const missions=data.missions.filter(m=>isMissionEligible(m,student.grade));
           if(!missions.length) fail(400,'対象のミッションがありません');
           if(data.dailyPullLimit>0&&data.draws.filter(d=>d.studentId===id&&d.drawnAt===todayStr()&&!d.issuedByAdmin&&!d.hidden).length>=data.dailyPullLimit) fail(400,'今日のガチャ回数の上限です');
           const m=missions[Math.floor(Math.random()*missions.length)],date=todayStr();
           result={id:uid(),studentId:id,missionId:m.id,missionText:m.text,status:'進行中',color:randomCapsuleColor(),drawnAt:date,deadline:m.deadlineDays?addDays(date,m.deadlineDays):null,approvedAt:null};
+          if(coinRoll<coinChance(data,id)) {
+            result={id:uid(),studentId:id,missionId:'halloween-coin',missionText:'お菓子ガチャコイン1枚プレゼント！',status:'コイン当選',coinReward:true,color:'#e9aa21',drawnAt:date,approvedAt:null,deadline:null};
+            const c=data.halloweenCoins ||= {stampCost:null,entries:[],loginDays:{}};
+            c.entries.push({id:uid(),studentId:id,source:'gacha',stampCost:0,drawId:result.id,createdAt:new Date().toISOString(),deliveredAt:null});
+          }
+          result.drawRequestId=b.requestId;
           data.draws.push(result);
+        } else if(b.action==='exchange_coin') {
+          if(!coinSeason())fail(403,'コインへの交換は10月31日までです');
+          const c=coinState(data),summary=coinSummary(data,id);
+          if(!Number.isSafeInteger(c.stampCost)||c.stampCost<1)fail(400,'先生が交換条件を準備中です');
+          if(b.expectedCost!==c.stampCost||b.expectedSpent!==summary.spent)fail(409,'交換状況が変わりました。最新の画面を確認してください');
+          if(summary.available<c.stampCost)fail(403,'交換に使えるスタンプが足りません');
+          const entry={id:uid(),studentId:id,source:'exchange',stampCost:c.stampCost,createdAt:new Date().toISOString(),deliveredAt:null};
+          c.entries.push(entry);data.halloweenCoins=c;result=entry;
         } else if(b.action==='report') {
           const d=data.draws.find(d=>d.id===b.id&&d.studentId===id);
           if(!d||d.status!=='進行中'||(d.deadline&&d.deadline<todayStr())) fail(409,'ミッションの状態が変わりました');
@@ -225,6 +267,7 @@ export async function handler(req) {
           data.prizeClaims=data.prizeClaims||{};
           if(data.deliveries[key]) fail(409,'この景品は受け取り済みです');
           if(!data.prizeClaims[key]) {
+            if(b.type==='milestone'&&b.month===COIN_MONTH)fail(403,'10月のスタンプ景品はお菓子ガチャコインに変更されました');
             if(b.type==='milestone'&&!milestoneClaimOpen(b.month))fail(403,'スタンプ景品の申請期限は翌月10日までです');
             const choices=b.type==='rank'?(data.rankPrizeHistory?.[b.month]?.earned||[]):computeEarnedPrizes(data.draws,data.students,{},data.milestonePrizes,b.month);
             const earned=choices.find(e=>e.studentId===id&&e.type===b.type&&e.ref===b.ref);
