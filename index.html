@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-njhapWCOFmg8IrhAihyxb6EhVUyPgShq/vM9nRkEZyM='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-OqwtbCbPQF6DlDG8m5GDFTgACJpPGXCE80nUUrIU1w4='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ガチャミッション</title>
@@ -341,7 +341,7 @@ function HalloweenBanner({compact=false}) {
   return h('div',{className:'halloween-banner'+(compact?' halloween-compact':'')},
     h('div',{className:'halloween-copy'},h('span',{className:'halloween-eyebrow'},'OCTOBER 2026 · SPECIAL DESIGN'),
       h('div',{className:'halloween-title'},h('span',{className:'halloween-happy'},'HAPPY'),h('span',null,'HALLOWEEN')),
-      h('span',{className:'halloween-caption'},'ちょっぴり不思議な、10月の教室。')),
+      h('span',{className:'halloween-caption'},h('span',null,'ちょっぴり不思議な、'),h('span',null,'10月の教室。'))),
     h('span',{className:'gg-banner-ghost','aria-hidden':true}),h('svg',{className:'halloween-scene',viewBox:'0 0 190 150',width:190,height:150,'aria-hidden':true,focusable:false},
       h('path',{d:'M137 8 A30 30 0 1 0 168 46 A28 28 0 0 1 137 8',fill:'#f7d989'}),
       h('g',{fill:'#ccb4ee'},h('path',{d:'M35 13v10m-5-5h10',stroke:'#ccb4ee',strokeWidth:2}),h('circle',{cx:91,cy:12,r:2}),h('circle',{cx:177,cy:77,r:2})),
@@ -1607,7 +1607,7 @@ const STUDENT_RANK_COLORS=['#696969','#92552a','#596a7a','#8a6500','#256f78'];
 function StudentRankCard({rules,level=0,count=0,history={},studentId}) {
   const previous=shiftMonth(currentMonthKey(),-1),result=history[previous]?.results?.[studentId];
   const next=level<4?level+1:null;
-  return React.createElement('section',{style:{background:'#fff',border:'1px solid #e5dfd6',borderRadius:10,padding:'10px 12px',marginBottom:12,fontSize:12,lineHeight:1.5}},
+  return React.createElement('section',{className:'gg-rank-summary',style:{background:'#fff',border:'1px solid #e5dfd6',borderRadius:10,padding:'10px 12px',marginBottom:12,fontSize:12,lineHeight:1.5}},
     React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap'}},
       React.createElement('div',null,React.createElement('span',{style:{color:'#756b63',marginRight:8}},'ランク'),React.createElement('strong',{style:{fontSize:18,color:STUDENT_RANK_COLORS[level]}},STUDENT_RANK_NAMES[level])),
       rules&&React.createElement('span',null,'今月 ',React.createElement('strong',null,count),'個')),
@@ -1687,7 +1687,7 @@ function MissionProposalPanel({admin,proposals,onAction}) {
     finally{setSending(false);}
   }
   const sorted=[...proposals].sort((a,b)=>(a.status==='検討中'?0:1)-(b.status==='検討中'?0:1)||(b.createdAtMs||0)-(a.createdAtMs||0));
-  return React.createElement('section',{style:styles.card},
+  return React.createElement('section',{className:'gg-proposal-panel',style:styles.card},
     React.createElement('h3',null,admin?'生徒から届いたミッション案':'ミッション案を送ろう'),
     React.createElement('p',null,admin?'採用するとガチャに登録され、提案した生徒に1スタンプが付与されます。内容・期限・対象を確認してください。':'やってみたいチャレンジを先生に提案できます。ミッション案が採用されると1スタンプもらえます！'),
     !admin&&React.createElement('form',{onSubmit:send},
@@ -1800,6 +1800,7 @@ function LoginScreen({
       if (e.key === "Enter") handleLogin();
     }
   }), loginError && /*#__PURE__*/React.createElement("div", {
+    className:"gg-login-error",
     style: { ...styles.loginError, fontSize: isMobile ? 14 : 14 }
   }, loginError), /*#__PURE__*/React.createElement("button", {
     className:"gg-primary",
@@ -1818,6 +1819,7 @@ function LoginScreen({
     },
     autoFocus: true
   }), adminLoginError && /*#__PURE__*/React.createElement("div", {
+    className:"gg-login-error",
     style: { ...styles.loginError, fontSize: isMobile ? 14 : 14 }
   }, adminLoginError), /*#__PURE__*/React.createElement("button", {
     className:"gg-primary",
@@ -1863,7 +1865,7 @@ function StudentMissionView({
     ...Array.from({length:8},(_,i)=>React.createElement("span",{key:i,className:"gg-gacha-spark gg-gacha-spark-"+i},i%3===0?"✦":"✧"))),
     React.createElement("div",{className:"gg-gacha-sign","aria-hidden":true},... ["TRICK","STUDY","GROW"].map(t=>React.createElement("span",{key:t},t))),
     React.createElement("h3",{className:"gg-gacha-title"},React.createElement("b",null,"10"),"月のミッションガチャ"),
-    React.createElement("p",{className:"gg-gacha-invitation"},"どんなミッションが出るかな？"), /*#__PURE__*/React.createElement("div", {
+    React.createElement("p",{className:"gg-gacha-invitation"},React.createElement("span",null,"どんな"),React.createElement("span",null,"ミッションが"),React.createElement("span",null,"出るかな？")), /*#__PURE__*/React.createElement("div", {
     className:"gg-machine-wrap",
     style: {
       ...styles.machineWrap,
@@ -1918,6 +1920,7 @@ function StudentMissionView({
   }, "\u9032\u884C\u4E2D\u306E\u30DF\u30C3\u30B7\u30E7\u30F3")), /*#__PURE__*/React.createElement("div", {
     style: styles.missionList
   }, myActive.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className:"gg-empty-message",
     style: styles.emptyBox
   }, "\u30AC\u30C1\u30E3\u3092\u5F15\u3044\u3066\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u624B\u306B\u5165\u308C\u3088\u3046"), myActive.map(d => /*#__PURE__*/React.createElement("div", {
     key: d.id,
@@ -1933,6 +1936,7 @@ function StudentMissionView({
       flex: 1
     }
   }, /*#__PURE__*/React.createElement("div", {
+    className:"gg-readable-copy",
     style: styles.missionText
   }, d.missionText, d.issuedByAdmin && /*#__PURE__*/React.createElement("span", {
     style: styles.issuedTag
@@ -1945,6 +1949,7 @@ function StudentMissionView({
     style: styles.reportBtn,
     onClick: () => reportDone(d.id)
   }, "\u9054\u6210\u3092\u5831\u544A") : /*#__PURE__*/React.createElement("span", {
+    className:"gg-status-label",
     style: styles.pendingTag
   }, "\u627F\u8A8D\u5F85\u3061")))), /*#__PURE__*/React.createElement("div", {
     className:"gg-section-head",
@@ -1952,6 +1957,7 @@ function StudentMissionView({
   }, /*#__PURE__*/React.createElement("h3", {
     style: styles.sectionTitle
   }, "\u30B9\u30BF\u30F3\u30D7\u30AB\u30FC\u30C9"), /*#__PURE__*/React.createElement("div", {
+    className:"gg-month-nav",
     style: styles.monthNav
   }, /*#__PURE__*/React.createElement("button", {
     style: styles.navBtn,
@@ -1998,6 +2004,7 @@ function StudentMissionView({
       background: "#E8A93B"
     }
   }), /*#__PURE__*/React.createElement("div", {
+    className:"gg-readable-copy",
     style: styles.missionText
   }, a.missionName, "(+", a.reward, "\u500B)"), /*#__PURE__*/React.createElement("span", {
     style: styles.achievedDate
@@ -2051,6 +2058,7 @@ function StudentPrizeView({
   }, /*#__PURE__*/React.createElement("h3", {
     style: styles.sectionTitle
   }, "受け取りを申請できる景品"), /*#__PURE__*/React.createElement("div", {
+    className:"gg-month-nav",
     style: styles.monthNav
   }, /*#__PURE__*/React.createElement("button", {
     style: styles.navBtn,
@@ -2064,6 +2072,7 @@ function StudentPrizeView({
   }, "\u2192"))), /*#__PURE__*/React.createElement("div", {
     style: styles.missionList
   }, myEarnedThisMonth.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className:"gg-empty-message",
     style: styles.emptyBox
   }, "\u3053\u306E\u6708\u306F\u307E\u3060\u666F\u54C1\u3092\u7372\u5F97\u3057\u3066\u3044\u307E\u305B\u3093"), myEarnedThisMonth.map(e => {
     const delivered = !!deliveries[deliveryKey(currentStudentId, e.month, e.type, e.ref)];
@@ -2073,7 +2082,8 @@ function StudentPrizeView({
       className:"gg-prize-card",
       style: styles.missionCard
     }, /*#__PURE__*/React.createElement("div", {
-      style: styles.missionText
+      className:"gg-readable-copy",
+    style: styles.missionText
     }, formatMonth(e.month), "分 · ", e.label), /*#__PURE__*/React.createElement("span", {
       style: delivered ? styles.approvedTag : styles.pendingTag
     }, delivered ? "受け取り済み" : claimed ? "申請済み・先生からの受け渡し待ち" : "申請できます"), !delivered&&!claimed&&React.createElement('button',{className:'gg-primary',style:styles.gachaBtnSmall,onClick:()=>claimPrize(e)},'受け取りを申請'));
@@ -2085,6 +2095,7 @@ function StudentPrizeView({
   }, "\u30B9\u30BF\u30F3\u30D7\u666F\u54C1\u4E00\u89A7")), /*#__PURE__*/React.createElement("div", {
     style: styles.missionList
   }, sortedMilestones.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className:"gg-empty-message",
     style: styles.emptyBox
   }, "\u30B9\u30BF\u30F3\u30D7\u666F\u54C1\u306F\u767B\u9332\u3055\u308C\u3066\u3044\u307E\u305B\u3093"), sortedMilestones.map(mp => {
     const achieved = myStampsThisMonth >= mp.threshold;
@@ -2093,7 +2104,8 @@ function StudentPrizeView({
       className:"gg-prize-card",
       style: styles.missionCard
     }, /*#__PURE__*/React.createElement("div", {
-      style: styles.missionText
+      className:"gg-readable-copy",
+    style: styles.missionText
     }, mp.threshold, "\u500B: ", mp.name), /*#__PURE__*/React.createElement("span", {
       style: achieved ? styles.approvedTag : styles.pendingTag
     }, achieved ? "達成済み" : `あと${mp.threshold - myStampsThisMonth}個`));
@@ -2102,13 +2114,14 @@ function StudentPrizeView({
     style: styles.sectionHead
   }, /*#__PURE__*/React.createElement("h3", {
     style: styles.sectionTitle
-  }, "\u30E9\u30F3\u30AD\u30F3\u30B0\u666F\u54C1(\u6708\u9593\u30C8\u30C3\u30D73)")), /*#__PURE__*/React.createElement("div", {
+  }, React.createElement("span",{className:"gg-heading-chunk"},"ランキング景品")," ",React.createElement("span",{className:"gg-heading-chunk"},"（月間トップ3）"))), /*#__PURE__*/React.createElement("div", {
     style: styles.missionList
   }, ["1", "2", "3"].map(rank => /*#__PURE__*/React.createElement("div", {
     key: rank,
     className:"gg-prize-card",
       style: styles.missionCard
   }, /*#__PURE__*/React.createElement("div", {
+    className:"gg-readable-copy",
     style: styles.missionText
   }, rank, "\u4F4D: ", rankPrizes[rank] && rankPrizes[rank].trim() ? rankPrizes[rank] : "未定")))), /*#__PURE__*/React.createElement("div", {
     className:"gg-section-head",
@@ -2116,6 +2129,7 @@ function StudentPrizeView({
   }, /*#__PURE__*/React.createElement("h3", {
     style: styles.sectionTitle
   }, "\u666F\u54C1\u3092\u30EA\u30AF\u30A8\u30B9\u30C8\u3059\u308B")), /*#__PURE__*/React.createElement("div", {
+    className:"gg-request-form",
     style: styles.newHiddenForm
   }, /*#__PURE__*/React.createElement("input", {
     style: {
@@ -2135,12 +2149,14 @@ function StudentPrizeView({
   }, "\u9001\u308B")), /*#__PURE__*/React.createElement("div", {
     style: styles.missionList
   }, mySuggestions.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className:"gg-empty-message",
     style: styles.emptyBox
   }, "直近7日間のリクエストはありません"), mySuggestions.map(s => /*#__PURE__*/React.createElement("div", {
     key: s.id,
     className:"gg-prize-card",
       style: styles.missionCard
   }, /*#__PURE__*/React.createElement("div", {
+    className:"gg-readable-copy",
     style: styles.missionText
   }, s.text)))));
 }
@@ -2161,14 +2177,16 @@ function IssuedMissionHistory({ history, students, onCancel }) {
     React.createElement("h4", { style: styles.subHeading }, "送信履歴"),
     React.createElement("p", { style: styles.hintText }, "進行中・承認待ちは取り消せます。承認済みは付与済みスタンプを保持するため取り消せません。"),
     React.createElement("input", { style: { ...styles.input, width: "100%", boxSizing: "border-box", marginBottom: 12 }, placeholder: "生徒名・生徒番号・ミッションで検索", value: query, onChange: e => setQuery(e.target.value) }),
-    rows.length === 0 ? React.createElement("div", { style: styles.emptyBox }, q ? "該当する送信履歴はありません" : "まだ送信履歴はありません") :
+    rows.length === 0 ? React.createElement("div", { className:"gg-empty-message",
+    style: styles.emptyBox }, q ? "該当する送信履歴はありません" : "まだ送信履歴はありません") :
     React.createElement("div", { style: styles.missionList }, rows.map(d => {
       const student = students.find(s => s.id === d.studentId);
       const name = d.recipientName || student?.name || "削除済みの生徒";
       const number = d.recipientNumber || student?.number || "";
       return React.createElement("div", { key: d.id, style: styles.missionCard },
         React.createElement("div", { style: styles.approveStudent }, name, number ? `（${number}）` : ""),
-        React.createElement("div", { style: styles.missionText }, d.missionText),
+        React.createElement("div", { className:"gg-readable-copy",
+    style: styles.missionText }, d.missionText),
         React.createElement("div", { style: styles.studentMeta }, `${d.isTestMission ? "テスト期間限定" : "通常ミッション"} ／ 送信：${dateLabel(d.issuedAt || d.drawnAt)} ／ 期限：${d.deadline || "なし"}`),
         React.createElement("div", { style: { marginTop: 8, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
           React.createElement("span", { style: styles.studentMeta }, d.status),
@@ -2401,6 +2419,7 @@ function AdminView(props) {
     style: adminTab === "ranking" ? styles.tabActive : styles.tab,
     onClick: () => setAdminTab("ranking")
   }, "\u6708\u9593\u30E9\u30F3\u30AD\u30F3\u30B0"), React.createElement('button',{style:adminTab==='rankSystem'?styles.tabActive:styles.tab,onClick:()=>setAdminTab('rankSystem')},'ランク制度'), React.createElement('button',{style:adminTab==='proposals'?styles.tabActive:styles.tab,onClick:()=>setAdminTab('proposals')},'生徒のミッション案',props.missionProposalCount>0&&React.createElement('span',{style:styles.tabBadge},props.missionProposalCount))), adminTab==='rankSystem'&&props.rankSystemPanel, adminTab==='proposals'&&props.missionProposalPanel, adminTab === "approve" && /*#__PURE__*/React.createElement("div", null, pendingApprovals.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className:"gg-empty-message",
     style: styles.emptyBox
   }, "\u627F\u8A8D\u5F85\u3061\u306E\u30DF\u30C3\u30B7\u30E7\u30F3\u306F\u3042\u308A\u307E\u305B\u3093") : /*#__PURE__*/React.createElement("div", {
     style: styles.approveList
@@ -2443,6 +2462,7 @@ function AdminView(props) {
     style: styles.navBtn,
     onClick: () => setDistMonth(shiftMonth(distMonth, 1))
   }, "\u2192")), Object.keys(distByStudent).length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className:"gg-empty-message",
     style: styles.emptyBox
   }, "\u3053\u306E\u6708\u306B\u666F\u54C1\u3092\u7372\u5F97\u3057\u305F\u751F\u5F92\u306F\u3044\u307E\u305B\u3093") : /*#__PURE__*/React.createElement("div", {
     style: styles.approveList
@@ -2458,7 +2478,8 @@ function AdminView(props) {
       key: key,
       style: styles.distRow
     }, /*#__PURE__*/React.createElement("span", {
-      style: styles.missionText
+      className:"gg-readable-copy",
+    style: styles.missionText
     }, e.label), /*#__PURE__*/React.createElement("button", {
       style: delivered ? styles.approveBtn : styles.rejectBtn,
       onClick: () => toggleDelivery(key)
@@ -2532,6 +2553,7 @@ function AdminView(props) {
     onClick: () => removeMission(m.id),
     "aria-label": "\u524A\u9664"
   }, "\xD7"))), missions.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className:"gg-empty-message",
     style: styles.emptyBox
   }, "\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u8FFD\u52A0\u3057\u3066\u304F\u3060\u3055\u3044")), /*#__PURE__*/React.createElement("h4", {
     style: {
@@ -2577,6 +2599,7 @@ function AdminView(props) {
     onClick: () => removeTestMission(tm.id),
     "aria-label": "\u524A\u9664"
   }, "\xD7"))), testMissions.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className:"gg-empty-message",
     style: styles.emptyBox
   }, "\u30C6\u30B9\u30C8\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u8FFD\u52A0\u3057\u3066\u304F\u3060\u3055\u3044")), /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
@@ -2586,6 +2609,7 @@ function AdminView(props) {
       marginTop: 24
     }
   }, "\u96A0\u3057\u30DF\u30C3\u30B7\u30E7\u30F3\u4E00\u89A7(\u30AC\u30C1\u30E3\u306B\u306F\u51FA\u306A\u3044)"), /*#__PURE__*/React.createElement("div", {
+    className:"gg-request-form",
     style: styles.newHiddenForm
   }, /*#__PURE__*/React.createElement("input", {
     style: styles.input,
@@ -2634,10 +2658,12 @@ function AdminView(props) {
     onClick: () => removeHiddenMission(hm.id),
     "aria-label": "\u524A\u9664"
   }, "\xD7"))), hiddenMissions.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className:"gg-empty-message",
     style: styles.emptyBox
   }, "\u96A0\u3057\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u8FFD\u52A0\u3057\u3066\u304F\u3060\u3055\u3044"))), adminTab === "prizes" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h4", {
     style: styles.subHeading
   }, "\u666F\u54C1\u30EA\u30AF\u30A8\u30B9\u30C8(\u751F\u5F92\u304B\u3089\u306E\u63D0\u6848)"), pendingSuggestions.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className:"gg-empty-message",
     style: styles.emptyBox
   }, "\u666F\u54C1\u30EA\u30AF\u30A8\u30B9\u30C8\u306F\u3042\u308A\u307E\u305B\u3093") : /*#__PURE__*/React.createElement("div", {
     style: styles.approveList
@@ -2707,7 +2733,7 @@ function AdminView(props) {
       ...styles.subHeading,
       marginTop: 24
     }
-  }, "\u30E9\u30F3\u30AD\u30F3\u30B0\u666F\u54C1(\u6708\u9593\u30C8\u30C3\u30D73)"), /*#__PURE__*/React.createElement("div", {
+  }, React.createElement("span",{className:"gg-heading-chunk"},"ランキング景品")," ",React.createElement("span",{className:"gg-heading-chunk"},"（月間トップ3）")), /*#__PURE__*/React.createElement("div", {
     style: styles.rankPrizeForm
   }, React.createElement("p",{style:{fontSize:13}},formatMonth(currentMonthKey())+"の景品です。月初に未定へ戻ります。月末の最終設定を翌月の申請に使用します。"), ["1", "2", "3"].map(rank => /*#__PURE__*/React.createElement("div", {
     key: rank,
@@ -2755,6 +2781,7 @@ function AdminView(props) {
     onClick: () => removeMilestonePrize(mp.id),
     "aria-label": "\u524A\u9664"
   }, "\xD7"))), sortedMilestones.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className:"gg-empty-message",
     style: styles.emptyBox
   }, "\u30B9\u30BF\u30F3\u30D7\u666F\u54C1\u3092\u8FFD\u52A0\u3057\u3066\u304F\u3060\u3055\u3044"))), adminTab === "students" && /*#__PURE__*/React.createElement("div", null, props.studentCSVPanel, /*#__PURE__*/React.createElement("h4", {
     style: styles.subHeading
@@ -2972,6 +2999,7 @@ function AdminView(props) {
       "aria-label": "\u524A\u9664"
     }, "\xD7")));
   }), students.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className:"gg-empty-message",
     style: styles.emptyBox
   }, "\u751F\u5F92\u3092\u8FFD\u52A0\u3057\u3066\u304F\u3060\u3055\u3044"))), adminTab === "issue" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h4", {
     style: styles.subHeading
@@ -3050,6 +3078,7 @@ function AdminView(props) {
       style: styles.studentMeta
     }, " (", [s.school, s.grade].filter(Boolean).join(" / "), ")")));
   }), filteredSortedStudents.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className:"gg-empty-message",
     style: styles.emptyBox
   }, "\u8A72\u5F53\u3059\u308B\u751F\u5F92\u304C\u3044\u307E\u305B\u3093")), /*#__PURE__*/React.createElement("button", {
     style: {
@@ -3059,6 +3088,7 @@ function AdminView(props) {
     onClick: issueMission,
     disabled: !issueMissionId || selectedStudentIds.length === 0
   }, selectedStudentIds.length > 0 ? `${selectedStudentIds.length}人に送る` : "ミッションを送る"), React.createElement(IssuedMissionHistory, { history: issuedMissionHistory, students, onCancel: cancelIssuedMission })), adminTab === "ranking" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className:"gg-month-nav",
     style: styles.monthNav
   }, /*#__PURE__*/React.createElement("button", {
     style: styles.navBtn,
@@ -3282,6 +3312,59 @@ const css = `
   @keyframes ggFestiveSpark { from { opacity:.6; transform:scale(.9); } to { opacity:1; transform:scale(1.1); } }
   @media(prefers-reduced-motion:reduce) { .halloween-theme .gg-gacha-spark { animation:none!important; } }
   @media(max-width:350px) { .halloween-theme .gg-gacha-title { font-size:14px; } .halloween-theme .gg-gacha-title::before,.halloween-theme .gg-gacha-title::after { width:22px; margin:0 3px; } .halloween-theme .gg-gacha-invitation { width:53px; font-size:10px; left:4%; } .halloween-theme .gg-gacha-sign span { font-size:8px; min-width:40px; padding:4px; } }
+
+  /* Explicit foregrounds and content-aware wrapping for student screens. */
+  .halloween-theme .gg-main { color:#f7ebff; }
+  .halloween-theme .gg-rank-summary,.halloween-theme .gg-proposal-panel { color:#322638; background:#fff8ed; border:1px solid #e8d4b4; border-radius:16px; padding:16px; line-height:1.75; }
+  .halloween-theme .gg-rank-summary { color:#322638!important; font-size:14px!important; }
+  .halloween-theme .gg-proposal-panel :is(h3,h4,p,label,summary) { color:#322638; }
+  .halloween-theme .gg-proposal-panel p { font-size:14px; line-height:1.8; }
+  .halloween-theme .gg-empty-message { color:#62564c!important; line-height:1.75; }
+  .halloween-theme .gg-login-error { color:#ffb7bf!important; }
+  .halloween-theme .gg-readable-copy { min-width:0; font-size:15px!important; line-height:1.7; overflow-wrap:anywhere; }
+  .halloween-theme :is(.gg-mission-card,.gg-prize-card) { align-items:center; }
+  .halloween-theme .gg-prize-card>.gg-readable-copy { flex:1 1 165px!important; }
+  .halloween-theme .gg-prize-card>span { color:#61472c!important; max-width:100%; white-space:normal!important; line-height:1.6; overflow-wrap:anywhere; }
+  .halloween-theme .gg-status-label { color:#78501b!important; }
+  .halloween-theme :is(.gg-mission-card,.gg-prize-card)>.gg-primary { flex-shrink:0; white-space:nowrap; font-size:14px!important; }
+  .halloween-theme .gg-mission-card>div:has(>.gg-readable-copy) { min-width:0; flex-basis:145px!important; }
+  .halloween-theme .gg-section-head { gap:10px 16px!important; }
+  .halloween-theme .gg-section-head h3 { flex:1 1 100%; line-height:1.6; font-size:17px!important; text-wrap:pretty; }
+  .halloween-theme .gg-heading-chunk { display:inline-block; white-space:nowrap; }
+  .halloween-theme .gg-month-nav { flex:0 0 auto; white-space:nowrap; min-height:32px; }
+  .halloween-theme .gg-month-label { white-space:nowrap; }
+  .halloween-theme .gg-month-nav button { flex-shrink:0; width:30px!important; height:30px!important; }
+  .halloween-theme .gg-section-head::after { bottom:0; top:auto; }
+  .halloween-theme .gg-gacha-invitation { width:auto!important; font-size:clamp(10px,2.7vw,12px)!important; left:3%!important; }
+  .halloween-theme .gg-gacha-invitation>span { display:block; white-space:nowrap; }
+  .halloween-theme .gg-gacha-scene>.gg-primary { color:#351731!important; text-shadow:none; }
+  .halloween-theme .gg-request-form { display:flex; flex-wrap:wrap; gap:10px; }
+  .halloween-theme .gg-request-form input { min-width:0; flex:1 1 180px!important; }
+  .halloween-theme .gg-request-form button { white-space:nowrap; flex-shrink:0; }
+  .halloween-theme input::placeholder,.halloween-theme textarea::placeholder { color:#706575; opacity:1; }
+  .halloween-theme .gg-my-rank>div:nth-child(2)>div { white-space:nowrap; }
+  .halloween-theme .halloween-copy { flex:1; }
+  .halloween-theme .halloween-banner .halloween-caption { line-height:1.8; text-wrap:pretty; }
+  @media(max-width:480px) {
+    .halloween-theme .gg-prize-card { padding-left:72px!important; }
+    .halloween-theme .gg-prize-card::before { width:48px; height:44px; left:12px; }
+    .halloween-theme .gg-prize-card>.gg-readable-copy { flex-basis:100%!important; }
+    .halloween-theme .gg-prize-card>.gg-primary { margin-left:0; }
+    .halloween-theme .gg-student-tabs button { font-size:13px!important; min-width:0; }
+    .halloween-theme .halloween-compact { gap:8px; padding:14px!important; }
+    .halloween-theme .halloween-compact .halloween-title { font-size:clamp(18px,5.4vw,26px)!important; }
+    .halloween-theme .halloween-compact .gg-banner-ghost { width:52px; height:55px; }
+  }
+  .halloween-theme .halloween-caption>span { display:inline-block; }
+  .halloween-theme .halloween-compact .halloween-eyebrow { display:none; }
+  .halloween-theme .gg-login-card input::placeholder { color:#b6aabf; }
+  .halloween-theme .gg-proposal-panel button { font-size:14px; line-height:1.5; padding:9px 16px; border-radius:12px; border:1px solid #bda3c9; background:#4a285f; color:white; }
+  .halloween-theme .gg-proposal-panel button:disabled { opacity:1; color:#675f6c; background:#e6e0e9; border-color:#c9bdcf; }
+  @media(max-width:480px) {
+    .halloween-theme .gg-mission-card>div:has(>.gg-readable-copy) { flex-basis:calc(100% - 24px)!important; }
+    .halloween-theme .gg-mission-card>.gg-primary { margin-left:auto; }
+    .halloween-theme .gg-readable-copy { text-wrap:pretty; line-break:strict; }
+  }
   * { box-sizing: border-box; }
   button, select, input { font-family: 'Noto Sans JP', sans-serif; }
   button:disabled { opacity: 0.5; cursor: default; }
