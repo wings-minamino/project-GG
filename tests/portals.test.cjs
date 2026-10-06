@@ -16,3 +16,13 @@ for(const [file,isAdmin] of [['index.html',false],['admin/index.html',true]]){
  if(isAdmin){assert.ok(html.includes('../icons/project-gg.png'));assert.ok(html.includes('../templates/student-import-template.xlsx'));}
  console.log('PASS:',file,'dedicated login, independent session, correct CSP and assets');
 }
+const source=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const seasonal=vm.createContext({IS_ADMIN_PORTAL:false,Date});
+vm.runInContext(source.slice(source.indexOf('function isHalloweenSeason('),source.indexOf('function HalloweenBanner(')),seasonal);
+for(const [date,admin,expected] of [
+ ['2026-09-30T23:59:59+09:00',false,false],['2026-10-01T00:00:00+09:00',false,true],
+ ['2026-10-31T23:59:59+09:00',false,true],['2026-11-01T00:00:00+09:00',false,false],
+ ['2026-10-06T15:00:00+09:00',true,false],['2027-10-06T15:00:00+09:00',false,false]]){
+ assert.equal(vm.runInContext(`isHalloweenSeason(${Date.parse(date)},${admin})`,seasonal),expected);
+}
+console.log('PASS: Halloween limited to October 2026 JST and excluded from teacher portal');

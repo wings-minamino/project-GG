@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-jrdi3fmSrZyGtCI4C/TfCazBQ0mhcC1yenC0xBQzCqw='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-NWjqD0SvMm/3Nu7loTIUpCJLum5B/TrxUpTVBoJpFYg='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プロジェクトGG 講師用</title>
@@ -333,6 +333,18 @@ const {
 } = React;
 const IS_ADMIN_PORTAL = true;
 const PORTAL_ROLE = IS_ADMIN_PORTAL ? "admin" : "student";
+function isHalloweenSeason(now=Date.now(),admin=IS_ADMIN_PORTAL) {
+  return !admin && now>=Date.parse('2026-10-01T00:00:00+09:00') && now<Date.parse('2026-11-01T00:00:00+09:00');
+}
+function HalloweenBanner({compact=false}) {
+  return React.createElement('div',{className:'halloween-banner'+(compact?' halloween-compact':'')},
+    React.createElement('div',null,React.createElement('span',{className:'halloween-eyebrow'},'OCTOBER 2026'),React.createElement('div',{className:'halloween-title'},'Happy Halloween'),React.createElement('span',{className:'halloween-caption'},'10月限定のハロウィンデザイン')),
+    React.createElement('svg',{viewBox:'0 0 110 100',width:90,height:82,'aria-hidden':true,focusable:false},
+      React.createElement('path',{d:'M55 27 Q50 10 66 9',fill:'none',stroke:'#a3b56f',strokeWidth:8,strokeLinecap:'round'}),
+      React.createElement('ellipse',{cx:55,cy:59,rx:46,ry:34,fill:'#ed7b24'}),
+      React.createElement('ellipse',{cx:55,cy:59,rx:27,ry:35,fill:'#ff9e3b'}),
+      React.createElement('path',{d:'M30 54 L42 41 L46 55 Z M65 55 L70 41 L82 54 Z M35 68 L47 74 L55 69 L63 74 L77 66 Q65 91 46 81 Z',fill:'#2e193e'})));
+}
 const STORAGE_KEY = "gacha-mission:data";
 const STUDENT_NUMBER_KEY = 'gacha-mission:last-student-number';
 function readStudentNumber() {
@@ -1311,7 +1323,8 @@ function GachaMissionApp() {
       restoreError && React.createElement('button',{onClick:restoreSession,style:{display:'block',margin:'20px auto'}},'再試行')));
   if (role === null) {
     return /*#__PURE__*/React.createElement("div", {
-      style: styles.app
+      className: isHalloweenSeason(suggestionNow) ? 'halloween-theme' : undefined,
+    style: styles.app
     }, /*#__PURE__*/React.createElement("style", null, css), /*#__PURE__*/React.createElement(LoginScreen, {
       loginNumber: loginNumber,
       setLoginNumber: setLoginNumber,
@@ -1324,6 +1337,7 @@ function GachaMissionApp() {
       adminLoginError: adminLoginError,
       submitAdminLogin: submitAdminLogin,
       backToStudentLogin: backToStudentLogin,
+      seasonal:isHalloweenSeason(suggestionNow),
       isMobile: isMobile
     }));
   }
@@ -1335,11 +1349,13 @@ function GachaMissionApp() {
     React.createElement('p',{role:'status'},syncMessage),
     React.createElement('button',{disabled:syncBusy,onClick:handleLogout},'ログアウト'));
   return /*#__PURE__*/React.createElement("div", {
+    className: isHalloweenSeason(suggestionNow) ? 'halloween-theme' : undefined,
     style: styles.app
   }, /*#__PURE__*/React.createElement("style", null, css), role === "student" && myUnseenAchievement && /*#__PURE__*/React.createElement(AchievementPopup, {
     achievement: myUnseenAchievement,
     onClose: () => closeAchievementPopup(myUnseenAchievement.id)
   }), /*#__PURE__*/React.createElement("div", {
+    className:'gg-topbar',
     style: {
       ...styles.topbar,
       padding: isMobile ? "10px 14px" : "14px 20px"
@@ -1362,13 +1378,14 @@ function GachaMissionApp() {
   }, "\u7BA1\u7406\u8005"), /*#__PURE__*/React.createElement("button", {
     style: styles.logoutBtn,
     onClick: handleLogout
-  }, "\u30ED\u30B0\u30A2\u30A6\u30C8"))), /*#__PURE__*/React.createElement("fieldset", { disabled: syncBusy || !!cloud.current.pending,
+  }, "\u30ED\u30B0\u30A2\u30A6\u30C8"))), /*#__PURE__*/React.createElement("fieldset", { className:"gg-main", disabled: syncBusy || !!cloud.current.pending,
     style: {
       border:0,minWidth:0,
       ...styles.main,
       padding: isMobile ? "14px 14px" : "22px 26px"
     }
-  }, role === "student" ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, role === "student" ? /*#__PURE__*/React.createElement("div", null, isHalloweenSeason(suggestionNow)&&React.createElement(HalloweenBanner), /*#__PURE__*/React.createElement("div", {
+    className:"gg-student-tabs",
     style: styles.studentTabs
   }, /*#__PURE__*/React.createElement("button", {
     style: studentTab === "mission" ? styles.subTabActive : styles.subTab,
@@ -1721,6 +1738,7 @@ function SecuritySettings({onChange}) {
       message&&React.createElement('p',{role:'status'},message)));
 }
 function LoginScreen({
+  seasonal=false,
   loginNumber,
   setLoginNumber,
   loginError,
@@ -1735,6 +1753,7 @@ function LoginScreen({
   isMobile
 }) {
   return /*#__PURE__*/React.createElement("div", {
+    className:"gg-login-wrap",
     style: {
       ...styles.loginWrap,
       padding: isMobile ? 14 : 40,
@@ -1742,6 +1761,7 @@ function LoginScreen({
       boxSizing: "border-box"
     }
   }, /*#__PURE__*/React.createElement("div", {
+    className:"gg-login-card",
     style: {
       ...styles.loginCard,
       width: "100%",
@@ -1760,7 +1780,7 @@ function LoginScreen({
       width: isMobile ? 200 : 420,
       maxWidth: "100%"
     }
-  })), !IS_ADMIN_PORTAL ? /*#__PURE__*/React.createElement("div", { style: { maxWidth: isMobile ? "100%" : 340, margin: "0 auto" } }, /*#__PURE__*/React.createElement("div", {
+  })), seasonal&&React.createElement(HalloweenBanner,{compact:true}), !IS_ADMIN_PORTAL ? /*#__PURE__*/React.createElement("div", { style: { maxWidth: isMobile ? "100%" : 340, margin: "0 auto" } }, /*#__PURE__*/React.createElement("div", {
     style: { ...styles.loginLabel, fontSize: isMobile ? 14 : 14, marginBottom: isMobile ? 10 : 10 }
   }, "\u751F\u5F92\u756A\u53F7\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044"), /*#__PURE__*/React.createElement("input", {
     style: { ...styles.loginInput, boxSizing: "border-box", fontSize: isMobile ? 16 : 16, padding: isMobile ? "12px" : "10px 14px", marginBottom: isMobile ? 12 : 12 },
@@ -1773,6 +1793,7 @@ function LoginScreen({
   }), loginError && /*#__PURE__*/React.createElement("div", {
     style: { ...styles.loginError, fontSize: isMobile ? 14 : 14 }
   }, loginError), /*#__PURE__*/React.createElement("button", {
+    className:"gg-primary",
     style: { ...styles.gachaBtn, width: "100%", fontSize: isMobile ? 16 : 16, padding: isMobile ? "12px 20px" : "10px 18px" },
     onClick: handleLogin
   }, "\u30ED\u30B0\u30A4\u30F3")) : /*#__PURE__*/React.createElement("div", { style: { maxWidth: isMobile ? "100%" : 340, margin: "0 auto" } }, /*#__PURE__*/React.createElement("div", {
@@ -1790,6 +1811,7 @@ function LoginScreen({
   }), adminLoginError && /*#__PURE__*/React.createElement("div", {
     style: { ...styles.loginError, fontSize: isMobile ? 14 : 14 }
   }, adminLoginError), /*#__PURE__*/React.createElement("button", {
+    className:"gg-primary",
     style: { ...styles.gachaBtn, width: "100%", fontSize: isMobile ? 16 : 16, padding: isMobile ? "12px 20px" : "10px 18px" },
     onClick: submitAdminLogin
   }, "\u30ED\u30B0\u30A4\u30F3"))));
@@ -1837,6 +1859,7 @@ function StudentMissionView({
     alt: "\u30AC\u30C1\u30E3\u53F0",
     style: styles.machineSvg
   })), /*#__PURE__*/React.createElement("button", {
+    className:"gg-primary",
     style: styles.gachaBtn,
     onClick: pullGacha,
     disabled: !canPull
@@ -1918,6 +1941,7 @@ function StudentMissionView({
     style: styles.navBtn,
     onClick: () => setStudentMonth(shiftMonth(studentMonth, 1))
   }, "\u2192"))), /*#__PURE__*/React.createElement("div", {
+    className:"gg-stamp-box",
     style: styles.stampBox
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.stampTotal
@@ -1929,6 +1953,7 @@ function StudentMissionView({
     length: stampSlots
   }).map((_, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
+    className:i < myStampsThisMonth ? "gg-stamp-filled" : "gg-stamp-empty",
     style: i < myStampsThisMonth ? styles.stampFilled : styles.stampEmpty
   }, i < myStampsThisMonth ? "★" : ""))), nextMilestone ? /*#__PURE__*/React.createElement("div", {
     style: styles.nextPrizeNote
@@ -1971,6 +1996,7 @@ function AchievementPopup({
   }, achievement.missionName), /*#__PURE__*/React.createElement("div", {
     style: styles.popupReward
   }, "\u30B9\u30BF\u30F3\u30D7 +", achievement.reward, "\u500B"), /*#__PURE__*/React.createElement("button", {
+    className:"gg-primary",
     style: styles.gachaBtn,
     onClick: onClose
   }, "\u3068\u3058\u308B")));
@@ -2071,6 +2097,7 @@ function StudentPrizeView({
       if (e.key === "Enter") submitPrizeSuggestion();
     }
   }), /*#__PURE__*/React.createElement("button", {
+    className:"gg-primary",
     style: styles.gachaBtnSmall,
     onClick: submitPrizeSuggestion
   }, "\u9001\u308B")), /*#__PURE__*/React.createElement("div", {
@@ -2456,6 +2483,7 @@ function AdminView(props) {
   }, "\u4E2D\u5B66\u751F\u9650\u5B9A"), /*#__PURE__*/React.createElement("option", {
     value: "highSchool"
   }, "\u9AD8\u6821\u751F\u9650\u5B9A")), /*#__PURE__*/React.createElement("button", {
+    className:"gg-primary",
     style: styles.gachaBtnSmall,
     onClick: addMission
   }, "\u8FFD\u52A0")), /*#__PURE__*/React.createElement("div", {
@@ -2502,6 +2530,7 @@ function AdminView(props) {
     value: newTestMissionReward,
     onChange: e => setNewTestMissionReward(e.target.value)
   }), /*#__PURE__*/React.createElement("button", {
+    className:"gg-primary",
     style: styles.gachaBtnSmall,
     onClick: addTestMission
   }, "\u8FFD\u52A0")), /*#__PURE__*/React.createElement("div", {
@@ -2558,6 +2587,7 @@ function AdminView(props) {
     value: newHiddenReward,
     onChange: e => setNewHiddenReward(e.target.value)
   }), /*#__PURE__*/React.createElement("button", {
+    className:"gg-primary",
     style: styles.gachaBtnSmall,
     onClick: addHiddenMission
   }, "\u8FFD\u52A0")), /*#__PURE__*/React.createElement("div", {
@@ -2678,6 +2708,7 @@ function AdminView(props) {
     value: newMilestoneName,
     onChange: e => setNewMilestoneName(e.target.value)
   }), /*#__PURE__*/React.createElement("button", {
+    className:"gg-primary",
     style: styles.gachaBtnSmall,
     onClick: addMilestonePrize
   }, "\u8FFD\u52A0")), /*#__PURE__*/React.createElement("div", {
@@ -2729,6 +2760,7 @@ function AdminView(props) {
     key: g,
     value: g
   }, g))), /*#__PURE__*/React.createElement("button", {
+    className:"gg-primary",
     style: styles.gachaBtnSmall,
     onClick: addStudent
   }, "\u8FFD\u52A0")), studentFormError && /*#__PURE__*/React.createElement("div", {
@@ -2763,6 +2795,7 @@ function AdminView(props) {
     key: g,
     value: g
   }, g))), /*#__PURE__*/React.createElement("button", {
+    className:"gg-primary",
     style: styles.gachaBtnSmall,
     onClick: applyBulkSchoolGrade,
     disabled: bulkEditStudentIds.length === 0 || !bulkSchool.trim() && !bulkGrade.trim()
@@ -3025,6 +3058,30 @@ function AdminView(props) {
   }, rankPrizes[String(i + 1)]))))));
 }
 const css = `
+  .halloween-theme { border-color:#40284c!important; min-height:100dvh!important; }
+  .halloween-theme .gg-login-wrap { background:radial-gradient(ellipse at 18% 15%,#51345e 0,transparent 48%),radial-gradient(ellipse at 85% 90%,#48232d 0,transparent 45%),#191320!important; }
+  .halloween-theme .gg-login-card { background:#211829!important; border:1px solid #795044!important; box-shadow:0 18px 70px #08050b66; }
+  .halloween-theme .gg-login-card input { border-color:#856479!important; }
+  .halloween-theme .gg-topbar { background:#24182f!important; border-color:#684c60!important; }
+  .halloween-theme .gg-main { background:radial-gradient(ellipse at 100% 0,#ecdff3 0,transparent 48%),#fff8ee!important; }
+  .halloween-theme .gg-primary { background:#ad470e!important; color:#fff!important; box-shadow:0 3px 0 #79300a; }
+  .halloween-theme .gg-primary:hover:not(:disabled) { background:#903909!important; }
+  .halloween-theme .gg-student-tabs { border-bottom-color:#dac6df!important; }
+  .halloween-theme .gg-student-tabs button { border-radius:12px 12px 0 0!important; }
+  .halloween-theme .gg-stamp-box { background:#fff3de!important; border-color:#edc690!important; }
+  .halloween-theme .gg-stamp-filled { background:#ad470e!important; color:#fff!important; border-color:#ad470e!important; }
+  .halloween-theme .gg-stamp-empty { background:#fffaf3!important; border-color:#dec7ab!important; }
+  .halloween-theme :is(input,button,select,textarea):focus-visible { outline:3px solid #bf7cef!important; outline-offset:3px; }
+  .halloween-theme .halloween-banner { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px 24px; margin:0 0 20px; border:1px solid #694264; border-radius:18px; background:radial-gradient(circle at 95% 10%,#6d4167 0,transparent 50%),#302039; color:#fff4e3; overflow:hidden; }
+  .halloween-theme .halloween-eyebrow { display:block; color:#ffbd79; font-size:10px; font-weight:700; letter-spacing:2.5px; margin-bottom:5px; }
+  .halloween-theme .halloween-title { font-family:Georgia,serif; font-size:clamp(24px,4vw,34px); font-weight:bold; line-height:1.25; }
+  .halloween-theme .halloween-caption { display:block; margin-top:6px; font-size:11px; color:#e4d0e5; }
+  .halloween-theme .halloween-banner svg { flex-shrink:0; }
+  .halloween-theme .halloween-compact { padding:14px 16px; margin-bottom:24px; text-align:left; }
+  .halloween-theme .halloween-compact .halloween-title { font-size:25px; }
+  .halloween-theme .halloween-compact svg { width:65px; height:64px; }
+  @media(max-width:400px) { .halloween-theme .halloween-banner { padding:16px; gap:10px; } .halloween-theme .halloween-banner svg { width:60px; height:60px; } .halloween-theme .halloween-compact .halloween-title { font-size:22px; } }
+
   * { box-sizing: border-box; }
   button, select, input { font-family: 'Noto Sans JP', sans-serif; }
   button:disabled { opacity: 0.5; cursor: default; }
