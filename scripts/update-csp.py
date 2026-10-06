@@ -14,7 +14,7 @@ print('Updated CSP for',len(hashes),'inline scripts')
 # Build the dedicated teacher entrypoint from the same application source.
 admin=s.replace('const IS_ADMIN_PORTAL = false;', 'const IS_ADMIN_PORTAL = true;')
 admin=admin.replace('<title>ガチャミッション</title>', '<title>プロジェクトGG 講師用</title>')
-admin=admin.replace('./icons/', '../icons/').replace('./templates/', '../templates/')
+admin=admin.replace('./icons/', '../icons/').replace('./templates/', '../templates/').replace('./assets/', '../assets/')
 admin_hashes=["'sha256-"+base64.b64encode(hashlib.sha256(code.encode()).digest()).decode()+"'" for code in re.findall(r'<script>(.*?)</script>',admin,re.S)]
 admin_policy=policy.replace(' '.join(hashes),' '.join(admin_hashes))
 admin=re.sub(r'<meta http-equiv="Content-Security-Policy"[^>]*>', '<meta http-equiv="Content-Security-Policy" content="'+admin_policy+'">',admin)
