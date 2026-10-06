@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-Ee8Mh43AH2q5+u7AeZ05KjCjWNCwUzMq6zPetIWennA='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-Kd+mbztF4socLw+8rTlBJdr5DygIhr9EWqPacOITc44='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プロジェクトGG 講師用</title>
@@ -342,7 +342,7 @@ function HalloweenBanner({compact=false}) {
     h('div',{className:'halloween-copy'},h('span',{className:'halloween-eyebrow'},'OCTOBER 2026 · SPECIAL DESIGN'),
       h('div',{className:'halloween-title'},h('span',{className:'halloween-happy'},'HAPPY'),h('span',null,'HALLOWEEN')),
       h('span',{className:'halloween-caption'},'ちょっぴり不思議な、10月の教室。')),
-    h('svg',{className:'halloween-scene',viewBox:'0 0 190 150',width:190,height:150,'aria-hidden':true,focusable:false},
+    h('span',{className:'gg-banner-ghost','aria-hidden':true}),h('svg',{className:'halloween-scene',viewBox:'0 0 190 150',width:190,height:150,'aria-hidden':true,focusable:false},
       h('path',{d:'M137 8 A30 30 0 1 0 168 46 A28 28 0 0 1 137 8',fill:'#f7d989'}),
       h('g',{fill:'#ccb4ee'},h('path',{d:'M35 13v10m-5-5h10',stroke:'#ccb4ee',strokeWidth:2}),h('circle',{cx:91,cy:12,r:2}),h('circle',{cx:177,cy:77,r:2})),
       h('path',{d:'M67 35 Q51 19 43 27 L44 40 L28 35 Q36 55 53 51 L60 57 L65 48 Q84 51 95 36 L77 41 L80 27 Z',fill:'#120c21',stroke:'#9b74ba',strokeWidth:1.4}),
@@ -1669,7 +1669,7 @@ function StudentRankingView({rankPanel,draws,students,currentStudentId,month,isM
         const self=s.id===currentStudentId;
         return React.createElement('li',{key:s.id,className:self?'gg-ranking-row gg-ranking-self':'gg-ranking-row',style:{padding:'14px 12px',marginBottom:8,borderRadius:12,background:self?'#fff0e8':'#f8f7f5',border:self?'1px solid #dcaa91':'1px solid transparent'}},
           React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:10,marginBottom:10}},
-            React.createElement('strong',{className:'gg-rank-medal',style:{minWidth:38,color:self?'#a52b2b':'#555'}},s.rank?s.rank+'位':'—'),
+            React.createElement('strong',{className:'gg-rank-medal',style:{minWidth:38,color:self?'#a52b2b':'#555'}},React.createElement('span',{className:'gg-rank-number'},s.rank?s.rank+'位':'—')),
             React.createElement(RankingName,{name:s.name,self}),
             React.createElement('span',{style:{whiteSpace:'nowrap'}},React.createElement('strong',{style:{fontSize:22}},s.count),React.createElement('span',{style:{fontSize:12,marginLeft:4}},'個'))),
           React.createElement('div',{'aria-hidden':true,style:{height:12,borderRadius:6,background:'#e7e3df',overflow:'hidden'}},React.createElement('div',{className:self?'gg-ranking-bar gg-ranking-own-bar':'gg-ranking-bar',style:{height:'100%',width:(s.count/maxCount*100)+'%',borderRadius:6,background:self?'#c13d35':'#c89662',transition:'width 300ms ease'}})));
@@ -1858,7 +1858,12 @@ function StudentMissionView({
       ...styles.gachaBox,
       padding: isMobile ? "18px 14px" : "26px 20px"
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, React.createElement("div",{className:"gg-gacha-festive","aria-hidden":true},
+    React.createElement("span",{className:"gg-gacha-horizon"}), React.createElement("span",{className:"gg-gacha-ground"}),
+    ...Array.from({length:8},(_,i)=>React.createElement("span",{key:i,className:"gg-gacha-spark gg-gacha-spark-"+i},i%3===0?"✦":"✧"))),
+    React.createElement("div",{className:"gg-gacha-sign","aria-hidden":true},... ["TRICK","STUDY","GROW"].map(t=>React.createElement("span",{key:t},t))),
+    React.createElement("h3",{className:"gg-gacha-title"},React.createElement("b",null,"10"),"月のミッションガチャ"),
+    React.createElement("p",{className:"gg-gacha-invitation"},"どんなミッションが出るかな？"), /*#__PURE__*/React.createElement("div", {
     className:"gg-machine-wrap",
     style: {
       ...styles.machineWrap,
@@ -1870,12 +1875,12 @@ function StudentMissionView({
     src: MACHINE_IMAGE_DATA_URI,
     alt: "\u30AC\u30C1\u30E3\u53F0",
     style: styles.machineSvg
-  }), React.createElement("img",{className:"gg-seasonal-machine",src:"../assets/halloween/machine.svg",alt:"かぼちゃのミッションガチャ",draggable:false})), /*#__PURE__*/React.createElement("button", {
+  }), React.createElement("span",{className:"gg-seasonal-machine",role:"img","aria-label":"かぼちゃのミッションガチャ"})), /*#__PURE__*/React.createElement("button", {
     className:"gg-primary",
     style: styles.gachaBtn,
     onClick: pullGacha,
     disabled: !canPull
-  }, isAnimating ? "抽選中..." : "ガチャを引く"), dailyPullLimit > 0 && /*#__PURE__*/React.createElement("div", {
+  }, isAnimating ? "抽選中..." : React.createElement(React.Fragment,null,React.createElement("span",{className:"gg-default-pull-label"},"ガチャを引く"),React.createElement("span",{className:"gg-halloween-pull-label"},"ミッションを引く",React.createElement("span",{"aria-hidden":true}," ›")))), dailyPullLimit > 0 && /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
   }, "\u672C\u65E5\u306E\u30AC\u30C1\u30E3: ", Math.min(myTodayPullCount, dailyPullLimit), " / ", dailyPullLimit, "\u56DE"), missionsAvailable === 0 && /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
@@ -1936,6 +1941,7 @@ function StudentMissionView({
   }, "\u30C6\u30B9\u30C8\u671F\u9593\u9650\u5B9A")), d.deadline && /*#__PURE__*/React.createElement("div", {
     style: isDrawOverdue(d) ? styles.overdueText : styles.deadlineText
   }, isDrawOverdue(d) ? `期限切れ(${d.deadline}まで)` : `期限: ${d.deadline}`)), d.status === "進行中" ? /*#__PURE__*/React.createElement("button", {
+    className:"gg-primary",
     style: styles.reportBtn,
     onClick: () => reportDone(d.id)
   }, "\u9054\u6210\u3092\u5831\u544A") : /*#__PURE__*/React.createElement("span", {
@@ -1951,6 +1957,7 @@ function StudentMissionView({
     style: styles.navBtn,
     onClick: () => setStudentMonth(shiftMonth(studentMonth, -1))
   }, "\u2190"), /*#__PURE__*/React.createElement("span", {
+    className:"gg-month-label",
     style: styles.monthLabel
   }, formatMonth(studentMonth)), /*#__PURE__*/React.createElement("button", {
     style: styles.navBtn,
@@ -1970,7 +1977,7 @@ function StudentMissionView({
     key: i,
     className:i < myStampsThisMonth ? "gg-stamp-filled" : "gg-stamp-empty",
     style: i < myStampsThisMonth ? styles.stampFilled : styles.stampEmpty
-  }, React.createElement("span",{className:"gg-original-stamp"},i < myStampsThisMonth ? "★" : ""),React.createElement("img",{className:"gg-pumpkin-stamp",src:"../assets/halloween/pumpkin.svg",alt:i < myStampsThisMonth ? "獲得済み" : "未獲得"})))), nextMilestone ? /*#__PURE__*/React.createElement("div", {
+  }, React.createElement("span",{className:"gg-original-stamp"},i < myStampsThisMonth ? "★" : ""),React.createElement("span",{className:"gg-pumpkin-stamp",role:"img","aria-label":i < myStampsThisMonth ? "獲得済み" : "未獲得"})))), nextMilestone ? /*#__PURE__*/React.createElement("div", {
     style: styles.nextPrizeNote
   }, "\u3042\u3068", /*#__PURE__*/React.createElement("strong", null, nextMilestone.threshold - myStampsThisMonth), "\u500B\u3067\u300C", nextMilestone.name, "\u300D\u304C\u3082\u3089\u3048\u307E\u3059!") : sortedMilestones.length > 0 ? /*#__PURE__*/React.createElement("div", {
     style: styles.nextPrizeNoteDone
@@ -2036,7 +2043,7 @@ function StudentPrizeView({
   isMobile
 }) {
   const sortedMilestones = useMemo(() => [...milestonePrizes].sort((a, b) => a.threshold - b.threshold), [milestonePrizes]);
-  return React.createElement("div", {className:"gg-prize-page"},
+  return React.createElement("div", {className:"gg-prize-page"}, React.createElement("h2",{className:"gg-prize-title"},"スタンプを集めて景品を申請"),
     React.createElement('p',{style:{fontSize:13,lineHeight:1.7}},'ランキング景品は前月分を今月の画面から申請できます（例：9月分は10月に表示）。スタンプ景品は翌月10日まで申請でき、11日から未申請の景品は表示されません。申請済みの景品は残ります。'),
     React.createElement('button',{style:{...styles.navBtn,width:'auto',height:'auto',padding:'8px 14px',borderRadius:8,whiteSpace:'nowrap',writingMode:'horizontal-tb',lineHeight:1.5},onClick:()=>setStudentMonth(currentMonthKey())},'今月の申請欄を表示'), /*#__PURE__*/React.createElement("div", {
     className:"gg-section-head",
@@ -2049,6 +2056,7 @@ function StudentPrizeView({
     style: styles.navBtn,
     onClick: () => setStudentMonth(shiftMonth(studentMonth, -1))
   }, "\u2190"), /*#__PURE__*/React.createElement("span", {
+    className:"gg-month-label",
     style: styles.monthLabel
   }, formatMonth(studentMonth)), /*#__PURE__*/React.createElement("button", {
     style: styles.navBtn,
@@ -2429,6 +2437,7 @@ function AdminView(props) {
     style: styles.navBtn,
     onClick: () => setDistMonth(shiftMonth(distMonth, -1))
   }, "\u2190"), /*#__PURE__*/React.createElement("span", {
+    className:"gg-month-label",
     style: styles.monthLabel
   }, formatMonth(distMonth)), /*#__PURE__*/React.createElement("button", {
     style: styles.navBtn,
@@ -3055,6 +3064,7 @@ function AdminView(props) {
     style: styles.navBtn,
     onClick: () => setRankMonth(shiftMonth(rankMonth, -1))
   }, "\u2190"), /*#__PURE__*/React.createElement("span", {
+    className:"gg-month-label",
     style: styles.monthLabel
   }, formatMonth(rankMonth)), /*#__PURE__*/React.createElement("button", {
     style: styles.navBtn,
@@ -3184,6 +3194,94 @@ const css = `
   .halloween-theme .gg-student-tabs .gg-tab-inactive { background:#352046!important; color:#dcc0ed!important; border-color:#78548c!important; }
   .halloween-theme .gg-student-tabs .gg-tab-active { background:linear-gradient(#ffa42e,#f37810)!important; color:#23112f!important; border-color:#ffc575!important; font-weight:700; }
   .halloween-theme .gg-student-tabs button { flex:1; padding:10px 6px!important; white-space:nowrap; border-radius:12px!important; }
+
+  /* Approved artwork is used intact as a responsive sprite atlas. */
+  .gg-gacha-title,.gg-banner-ghost { display:none; }
+  .halloween-theme .gg-main { background:radial-gradient(ellipse at 50% 0,#513175,transparent 65%),#1c102e!important; padding-bottom:28px!important; }
+  .halloween-theme .halloween-banner:not(.halloween-compact) { min-height:92px; padding:12px 20px; margin-bottom:16px; border:0; box-shadow:none; background:transparent; }
+  .halloween-theme .halloween-banner:not(.halloween-compact) .halloween-title { font-size:25px; margin:3px 0; }
+  .halloween-theme .halloween-banner:not(.halloween-compact) .halloween-happy { font-size:10px; letter-spacing:4px; }
+  .halloween-theme .halloween-banner:not(.halloween-compact) .halloween-eyebrow { display:none; }
+  .halloween-theme .halloween-scene { display:none; }
+  .halloween-theme .gg-banner-ghost { display:block; flex:none; width:85px; height:90px; }
+  .halloween-theme .gg-gacha-title { display:block; margin:4px 0 8px; font-size:clamp(18px,4.5vw,26px); color:#251235; text-align:center; }
+  .halloween-theme .gg-gacha-scene { overflow:hidden; background:radial-gradient(ellipse at 50% 40%,#fffdf5 35%,#efe0ca 75%,#ac7b9b 100%)!important; border:2px solid #ffe4ac!important; padding:18px 14px 22px!important; }
+  .halloween-theme .gg-machine-wrap { width:min(100%,420px)!important; height:auto!important; }
+  .halloween-theme .gg-seasonal-machine { width:100%; height:auto; aspect-ratio:680/597; }
+  .halloween-theme .gg-primary { background:linear-gradient(#ffa62b,#ff7508)!important; color:#28112f!important; border:2px solid #ffc76e!important; box-shadow:inset 0 2px 0 #ffe5a9,0 4px 0 #b94916,0 6px 12px #46163225; border-radius:28px!important; font-weight:800!important; }
+  .halloween-theme .gg-primary:hover:not(:disabled) { background:linear-gradient(#ffbb4a,#ff8815)!important; }
+  .halloween-theme .gg-primary:disabled { background:#d1cbd2!important; border-color:#e8e3e8!important; color:#504753!important; box-shadow:0 3px 0 #aaa1ad; opacity:1; }
+  .halloween-theme .gg-student-tabs { border-radius:18px 18px 0 0; padding:4px 4px 0; gap:5px; }
+  .halloween-theme .gg-student-tabs button { border-radius:16px 16px 0 0!important; }
+  .halloween-theme .gg-mission-card,.halloween-theme .gg-prize-card,.halloween-theme .gg-stamp-box,.halloween-theme .gg-ranking-card,.halloween-theme .gg-my-rank { background-color:#fff6e5!important; border:2px solid #efdbb9!important; border-radius:24px!important; box-shadow:0 6px 0 #110a1e44; }
+  .halloween-theme .gg-section-head { margin-top:32px!important; padding-right:70px; }
+  .halloween-theme .gg-section-head::after { width:64px; height:68px; bottom:-8px; }
+  .halloween-theme .gg-my-rank { padding-bottom:74px!important; }
+  .halloween-theme .gg-my-rank::after { width:74px; height:78px; bottom:-13px; }
+  .halloween-theme .gg-prize-card { padding-left:94px!important; min-height:114px; }
+  .halloween-theme .gg-prize-card::before { width:70px; height:64px; left:12px; top:22px; }
+  .halloween-theme .gg-pumpkin-stamp { width:90%; height:auto; aspect-ratio:585/530; }
+  .halloween-theme .gg-ranking-card { background-image:none!important; padding-bottom:28px!important; }
+  .halloween-theme .gg-rank-medal { position:relative; isolation:isolate; background:none; width:62px; min-width:62px!important; height:60px; padding-top:8px; color:#281033!important; text-shadow:0 1px 2px #fff5dc; font-size:18px; }
+  .halloween-theme .gg-rank-medal::before { content:''; position:absolute; inset:0; z-index:-1; opacity:.55; }
+  .halloween-theme .gg-ranking-row { border-radius:16px!important; }
+  .halloween-theme .gg-ranking-row>div:first-child { align-items:center!important; }
+  .halloween-theme .gg-ranking-row:nth-child(3) .gg-rank-medal { filter:sepia(.3); }
+  .halloween-theme .gg-mission-page::after,.halloween-theme .gg-prize-page::after,.halloween-theme .gg-ranking-page::after { content:''; display:block; width:min(100%,370px); aspect-ratio:610/555; margin:24px auto 0; pointer-events:none; }
+  @media(max-width:400px) {
+    .halloween-theme .gg-prize-card { padding-left:78px!important; }
+    .halloween-theme .gg-prize-card::before { width:57px; height:52px; left:9px; }
+    .halloween-theme .gg-section-head { flex-wrap:wrap; gap:8px; }
+    .halloween-theme .gg-rank-medal { width:48px; min-width:48px!important; height:46px; font-size:15px; }
+    .halloween-theme .gg-banner-ghost { width:68px; height:72px; }
+  }
+  .halloween-theme .gg-seasonal-machine { background-image:url('../assets/halloween/approved-artwork.png'); background-repeat:no-repeat; background-size:184.411765% 210.050251%; background-position:2.090592% 7.305936%; }
+  .halloween-theme .gg-banner-ghost,.halloween-theme .gg-section-head::after,.halloween-theme .gg-my-rank::after { background-image:url('../assets/halloween/approved-artwork.png'); background-repeat:no-repeat; background-size:232.222222% 220.000000%; background-position:96.358543% 7.602339%; }
+  .halloween-theme .gg-pumpkin-stamp,.halloween-theme .gg-prize-card::before,.halloween-theme .gg-rank-medal::before { background-image:url('../assets/halloween/approved-artwork.png'); background-repeat:no-repeat; background-size:214.358974% 236.603774%; background-position:2.690583% 93.922652%; }
+  .halloween-theme .gg-mission-page::after,.halloween-theme .gg-prize-page::after,.halloween-theme .gg-ranking-page::after { background-image:url('../assets/halloween/approved-artwork.png'); background-repeat:no-repeat; background-size:205.573770% 225.945946%; background-position:97.049689% 92.989986%; }
+  .gg-prize-title { display:none; }
+  .halloween-theme .gg-prize-title { display:block; font-size:clamp(18px,4.6vw,25px); color:#fff3d8; margin:24px 0 16px; }
+  .halloween-theme .gg-month-label { color:#f8e5ff!important; }
+  .halloween-theme .gg-rank-number { border-radius:50%; background:#fff0c9; padding:2px 5px; box-shadow:0 0 5px #fff0c9; }
+  .halloween-theme .halloween-banner:not(.halloween-compact) .halloween-caption { max-width:none; }
+  .halloween-theme .gg-mission-card { flex-wrap:wrap; gap:12px!important; }
+
+
+  /* Match the approved cream-and-purple illustrated gacha stage. */
+  .gg-gacha-festive,.gg-gacha-sign,.gg-gacha-invitation,.gg-halloween-pull-label { display:none; }
+  .halloween-theme .gg-gacha-scene { position:relative; isolation:isolate; padding:15px 12px 18px!important; overflow:hidden; border:1px solid #f4ddb2!important; border-radius:25px!important; background:radial-gradient(ellipse at 45% 28%,#fffdf0,#fff0d4 66%,#efdec7)!important; box-shadow:0 8px 0 #140b2144!important; }
+  .halloween-theme .gg-gacha-festive { display:block; position:absolute; inset:0; overflow:hidden; z-index:-1; pointer-events:none; }
+  .halloween-theme .gg-gacha-horizon { position:absolute; left:0; right:0; top:40%; bottom:25%; background:url('../assets/halloween/night.svg') center bottom / 100% 100% no-repeat; opacity:.9; }
+  .halloween-theme .gg-gacha-ground { position:absolute; left:-25%; width:150%; height:35%; bottom:-13%; border-radius:50% 50% 0 0; background:linear-gradient(#b183ae,#815a95); box-shadow:0 -10px 0 #d2a9bd; }
+  .halloween-theme .gg-gacha-title { position:relative; display:flex; align-items:center; justify-content:center; gap:1px; color:#20132e; margin:0 0 2px; font-size:clamp(16px,4.2vw,26px); white-space:nowrap; line-height:1.3; letter-spacing:-.5px; }
+  .halloween-theme .gg-gacha-title b { font-size:1.45em; line-height:1; }
+  .halloween-theme .gg-gacha-title::before,.halloween-theme .gg-gacha-title::after { content:''; display:block; flex:none; width:29px; height:18px; margin:0 6px; background:#251535; clip-path:polygon(0 0,25% 15%,36% 42%,41% 23%,46% 38%,54% 38%,59% 23%,64% 42%,75% 15%,100% 0,89% 40%,77% 42%,72% 68%,62% 65%,50% 100%,38% 65%,28% 68%,23% 42%,11% 40%); transform:rotate(12deg); }
+  .halloween-theme .gg-gacha-title::after { transform:rotate(-12deg); }
+  .halloween-theme .gg-gacha-invitation { display:block; position:absolute; top:22%; left:5%; width:68px; color:#322344; font-size:12px; font-weight:700; line-height:1.6; text-align:left; transform:rotate(-12deg); margin:0; z-index:2; pointer-events:none; }
+  .halloween-theme .gg-gacha-sign { display:flex; position:absolute; right:4%; top:26%; flex-direction:column; align-items:center; gap:5px; z-index:2; transform:rotate(-9deg); pointer-events:none; }
+  .halloween-theme .gg-gacha-sign::before { content:''; position:absolute; top:-12px; bottom:-33px; width:7px; background:#4a2b40; border-radius:3px; z-index:-1; }
+  .halloween-theme .gg-gacha-sign span { display:block; padding:5px 7px; min-width:52px; font-family:Georgia,serif; font-size:10px; font-weight:900; letter-spacing:1px; color:#e6bd83; background:linear-gradient(8deg,#3c2539,#694750 55%,#3c2539); box-shadow:0 2px 0 #26192b; clip-path:polygon(0 5%,94% 0,100% 90%,8% 100%); }
+  .halloween-theme .gg-gacha-sign span:nth-child(2) { transform:rotate(8deg); }
+  .halloween-theme .gg-gacha-scene .gg-machine-wrap { position:relative; width:min(100%,440px)!important; margin:0 auto 0!important; padding-top:8px; }
+  .halloween-theme .gg-gacha-scene .gg-seasonal-machine { filter:drop-shadow(0 8px 6px #5d284d30); }
+  .halloween-theme .gg-gacha-spark { position:absolute; color:#f6a21c; font-size:23px; line-height:1; text-shadow:0 1px 0 #fff; animation:ggFestiveSpark 4s ease-in-out infinite alternate; }
+  .halloween-theme .gg-gacha-spark-0 { top:18%; left:8%; font-size:13px; }
+  .halloween-theme .gg-gacha-spark-1 { top:18%; left:29%; animation-delay:-2s; }
+  .halloween-theme .gg-gacha-spark-2 { top:20%; right:22%; color:#633854; animation-delay:-1s; }
+  .halloween-theme .gg-gacha-spark-3 { top:12%; right:4%; }
+  .halloween-theme .gg-gacha-spark-4 { top:56%; left:5%; font-size:15px; }
+  .halloween-theme .gg-gacha-spark-5 { top:72%; right:7%; font-size:14px; }
+  .halloween-theme .gg-gacha-spark-6 { top:48%; right:12%; font-size:12px; }
+  .halloween-theme .gg-gacha-spark-7 { top:39%; left:27%; font-size:12px; }
+  .halloween-theme .gg-default-pull-label { display:none; }
+  .halloween-theme .gg-halloween-pull-label { display:inline; }
+  .halloween-theme .gg-halloween-pull-label>span { display:inline-block; font-size:1.5em; line-height:.7; margin-left:10px; vertical-align:-1px; }
+  .halloween-theme .gg-gacha-scene>.gg-primary { position:relative; width:100%; max-width:440px; min-height:58px; margin-top:-1px; font-size:clamp(19px,5vw,26px)!important; letter-spacing:1px; color:#fffdf3!important; text-shadow:0 1px 2px #913c0a; background:linear-gradient(#ffa61b,#ff7906)!important; border:3px solid #ffd270!important; box-shadow:inset 0 2px 0 #ffecac,0 5px 0 #c1622c,0 7px 12px #59294033; }
+  .halloween-theme .gg-gacha-scene>.gg-primary:disabled { color:#fff!important; background:#9c919e!important; text-shadow:none; border-color:#d8cddb!important; box-shadow:0 4px 0 #7f7384; }
+  .halloween-theme .gg-gacha-scene>.gg-primary+div { color:#392344!important; margin-top:13px!important; font-weight:600; }
+  @keyframes ggFestiveSpark { from { opacity:.6; transform:scale(.9); } to { opacity:1; transform:scale(1.1); } }
+  @media(prefers-reduced-motion:reduce) { .halloween-theme .gg-gacha-spark { animation:none!important; } }
+  @media(max-width:350px) { .halloween-theme .gg-gacha-title { font-size:14px; } .halloween-theme .gg-gacha-title::before,.halloween-theme .gg-gacha-title::after { width:22px; margin:0 3px; } .halloween-theme .gg-gacha-invitation { width:53px; font-size:10px; left:4%; } .halloween-theme .gg-gacha-sign span { font-size:8px; min-width:40px; padding:4px; } }
   * { box-sizing: border-box; }
   button, select, input { font-family: 'Noto Sans JP', sans-serif; }
   button:disabled { opacity: 0.5; cursor: default; }
