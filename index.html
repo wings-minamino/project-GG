@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-AeVbpJWbvXE3b3eYDdKnabOHCLkD91fXBuW3Qqj96Hg='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-ATZz3Sj2MIUhuHvci1d/b+obXrOmQQ4WbD1AoNENfb0='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ガチャミッション</title>
@@ -1861,16 +1861,30 @@ function HalloweenCoinPanel({coins,draws,studentId,onAction}) {
   const total=stampsForStudentMonth(draws,studentId,'2026-10');
   const spent=entries.filter(e=>e.source==='exchange').reduce((n,e)=>n+e.stampCost,0),available=Math.max(0,total-spent);
   const active=currentMonthKey()==='2026-10',cost=coins.stampCost;
+  const ready=!!cost&&available>=cost,remaining=cost?Math.max(0,cost-available):0;
+  const exchangeable=cost?Math.floor(available/cost):0,waiting=entries.filter(e=>!e.deliveredAt).length;
   if(!active&&!entries.length)return null;
   async function exchange(){if(busy)return;setBusy(true);setMessage('');try{if(await onAction('exchange_coin',{expectedCost:cost,expectedSpent:spent}))setMessage('コイン1枚の交換を受け付けました。先生から受け取ってください。');}finally{setBusy(false);}}
-  return h('section',{className:'gg-coin-panel'},h('h3',null,'🎃 10月限定 お菓子ガチャコイン'),
-    h('p',null,active?(cost?`スタンプ${cost}個ごとにコイン1枚と交換できます。`:'交換に必要なスタンプ数は先生が準備中です。'):'10月のコイン交換は終了しました。受け取り履歴を確認できます。'),
-    h('div',{className:'gg-coin-totals'},...[[total,'累計スタンプ'],[spent,'交換に使用済み'],[available,'まだ使える']].map(([n,label])=>h('div',{key:label},h('strong',null,n),h('span',null,label)))),
+  return h('section',{className:'gg-coin-panel gg-coin-exchange','aria-label':'お菓子ガチャコインの交換'},
+    h('div',{className:'gg-coin-heading'},h('div',null,h('span',{className:'gg-coin-season'},'10月限定'),h('h3',null,'お菓子ガチャコインに交換')),h('span',{className:'gg-coin-token','aria-hidden':true},'★')),
+    active?h(React.Fragment,null,
+      h('div',{className:'gg-coin-rate'},h('div',null,h('span',{'aria-hidden':true},'🎃 '),'スタンプ ',h('strong',null,cost||'？'),' 個'),h('span',{className:'gg-coin-arrow','aria-hidden':true},'→'),h('div',null,h('span',{className:'gg-coin-mini','aria-hidden':true},'★'),' コイン ',h('strong',null,'1'),' 枚')),
+      h('div',{className:'gg-coin-progress-card'},
+        h('div',{className:'gg-coin-balance'},h('span',null,'交換に使えるスタンプ'),h('span',null,h('strong',null,available),' 個')),
+        cost?h(React.Fragment,null,
+          h('div',{className:'gg-coin-progress',role:'progressbar','aria-label':'コイン1枚の交換まで','aria-valuemin':0,'aria-valuemax':cost,'aria-valuenow':Math.min(available,cost)},h('span',{style:{width:Math.min(100,available/cost*100)+'%'}})),
+          h('p',{className:'gg-coin-goal'},ready?h(React.Fragment,null,'交換できるコインは ',h('strong',null,exchangeable),' 枚！'):h(React.Fragment,null,'あと ',h('strong',null,remaining),' 個でコイン1枚！')),
+          h('p',{className:'gg-coin-help'},ready?'下のボタンで1枚ずつ交換しよう':'ミッションを達成してスタンプを集めよう')):
+          h('p',{className:'gg-coin-goal'},'先生が交換条件を準備中')),
+      h('button',{className:'gg-primary gg-coin-exchange-button',disabled:busy||!ready,onClick:exchange},busy?'交換中…':!cost?'交換の準備中':!ready?`あと${remaining}個で交換できるよ`:'★ コイン1枚に交換する',cost&&h('small',null,`スタンプ${cost}個を使います`))):
+      h('p',{className:'gg-coin-goal'},'10月のコイン交換は終了しました'),
+    message&&h('p',{role:'status',className:'gg-coin-success'},'✓ '+message),
+    h('div',{className:'gg-coin-wallet'},h('div',null,h('span',null,'獲得したコイン'),h('strong',null,entries.length,h('small',null,' 枚'))),h('div',{className:waiting?'gg-coin-waiting':''},h('span',null,'先生から受け取り待ち'),h('strong',null,waiting,h('small',null,' 枚')))),
+    waiting>0&&h('p',{className:'gg-coin-pickup'},'🎁 先生に声をかけてコインを受け取ろう！'),
     h('p',{className:'gg-coin-note'},'交換してもランキング・ランク判定用の累計は減りません。'),
-    active&&h('button',{className:'gg-primary',disabled:busy||!cost||available<cost,onClick:exchange},busy?'交換中…':!cost?'先生が交換条件を準備中':available<cost?`あと${cost-available}個で交換`:'コイン1枚に交換する'),
-    h('p',null,`コイン獲得 ${entries.length}枚 ／ 受け取り待ち ${entries.filter(e=>!e.deliveredAt).length}枚`),
-    message&&h('p',{role:'status'},message),
-    entries.length>0&&h('details',null,h('summary',null,'コインの交換・当選履歴'),h('ul',null,...[...entries].reverse().map(e=>h('li',{key:e.id},`${new Date(e.createdAt).toLocaleDateString('ja-JP',{timeZone:'Asia/Tokyo'})} · ${e.source==='gacha'?'ガチャ当選':`スタンプ${e.stampCost}個を使用`} · コイン1枚 · ${e.deliveredAt?'受け取り済み':'先生から受け取り待ち'}`)))));
+    h('details',{className:'gg-coin-history'},h('summary',null,'スタンプの内訳・コインの履歴'),
+      h('p',null,`累計 ${total}個 ／ 交換に使用済み ${spent}個 ／ 使える ${available}個`),
+      entries.length?h('ul',null,...[...entries].reverse().map(e=>h('li',{key:e.id},`${new Date(e.createdAt).toLocaleDateString('ja-JP',{timeZone:'Asia/Tokyo'})} · ${e.source==='gacha'?'ガチャ当選':`スタンプ${e.stampCost}個を使用`} · コイン1枚 · ${e.deliveredAt?'受け取り済み':'先生から受け取り待ち'}`))):h('p',null,'コインの獲得はまだありません。')));
 }
 function HalloweenCoinAdmin({coins,students,onAction,distribution=false}) {
   const h=React.createElement,[cost,setCost]=useState(coins.stampCost??''),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
@@ -3476,6 +3490,27 @@ const css = `
     .halloween-theme .gg-mission-card>.gg-primary { margin-left:auto; }
     .halloween-theme .gg-readable-copy { text-wrap:pretty; line-break:strict; }
   }
+
+  .gg-coin-panel.gg-coin-exchange { background:linear-gradient(145deg,#fff9e9,#ffedcb);border:2px solid #e6b75d;padding:24px;border-radius:24px;box-shadow:0 8px 24px #7a481010; }
+  .gg-coin-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px; }
+  .gg-coin-season { display:inline-block;background:#63348a;color:#fff;border-radius:20px;padding:2px 12px;font-size:12px;font-weight:700;margin-bottom:7px; }
+  .gg-coin-panel.gg-coin-exchange h3 { margin:0;font-size:21px;line-height:1.5; }
+  .gg-coin-token,.gg-coin-mini { display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#ffed9d,#f5b92f);border:3px solid #d49319;color:#81500b;box-shadow:inset 0 0 0 3px #ffe7a0,0 4px 0 #bb7c15; }
+  .gg-coin-token { width:66px;height:66px;flex-shrink:0;font-size:34px;transform:rotate(12deg); }
+  .gg-coin-mini { width:24px;height:24px;font-size:14px;border-width:2px;vertical-align:middle;box-shadow:inset 0 0 0 2px #ffe7a0; }
+  .gg-coin-rate { display:flex;align-items:center;justify-content:center;gap:16px;padding:14px 8px;background:#fff9;border-radius:14px;font-size:14px;font-weight:700; }
+  .gg-coin-rate strong { font-size:25px; }.gg-coin-arrow { font-size:26px;color:#97631d; }
+  .gg-coin-progress-card { background:white;border:1px solid #eedbc0;border-radius:16px;padding:18px;margin:16px 0; }
+  .gg-coin-balance { display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px;font-weight:700; }.gg-coin-balance strong { font-size:32px;line-height:1.3;color:#69378b; }
+  .gg-coin-progress { height:16px;border-radius:20px;background:#ede7f1;overflow:hidden;margin:12px 0 14px; }.gg-coin-progress>span { display:block;height:100%;background:linear-gradient(90deg,#f5b42d,#ef8726);border-radius:20px; }
+  .gg-coin-exchange .gg-coin-goal { font-size:19px;font-weight:800;text-align:center;margin:8px 0;color:#593171; }.gg-coin-goal strong { font-size:28px; }
+  .gg-coin-exchange .gg-coin-help { text-align:center;font-size:12px;color:#6e6074;margin:4px 0; }
+  .gg-coin-exchange .gg-coin-exchange-button { display:block;width:100%;border:0;border-radius:14px;padding:16px 12px;background:#67338b;color:white;font-size:19px;font-weight:800;box-shadow:0 4px 0 #45205e;line-height:1.5; }
+  .gg-coin-exchange-button small { display:block;font-size:12px;font-weight:500; }.gg-coin-exchange .gg-coin-exchange-button:disabled { background:#e4dce9;color:#64596c;box-shadow:none;cursor:default;opacity:1; }.gg-coin-exchange-button:focus-visible { outline:3px solid #c47608;outline-offset:4px; }
+  .gg-coin-wallet { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px; }.gg-coin-wallet>div { display:flex;flex-direction:column;align-items:center;border-radius:12px;padding:12px 6px;background:#fff9;border:1px solid #e9d8bd; }.gg-coin-wallet span { font-size:12px; }.gg-coin-wallet strong { font-size:28px; }.gg-coin-wallet small { font-size:13px;font-weight:500; }.gg-coin-wallet .gg-coin-waiting { background:#fff2c6;border-color:#dca637; }
+  .gg-coin-exchange .gg-coin-pickup { font-weight:700;text-align:center;color:#744918;margin:10px 0; }.gg-coin-exchange .gg-coin-note { font-size:11px;color:#6d5e70;margin:16px 0 10px; }.gg-coin-success { background:#e9f5e9;border:1px solid #94bd94;border-radius:12px;padding:12px;color:#28552c;font-weight:700; }
+  .gg-coin-history { border-top:1px solid #e8cfaa;padding-top:12px;font-size:12px; }
+  @media(max-width:480px) { .gg-coin-panel.gg-coin-exchange { padding:16px; }.gg-coin-panel.gg-coin-exchange h3 { font-size:18px; }.gg-coin-token { width:50px;height:50px;font-size:27px; }.gg-coin-rate { gap:8px;font-size:12px; }.gg-coin-rate strong { font-size:22px; }.gg-coin-progress-card { padding:14px; }.gg-coin-exchange .gg-coin-exchange-button { font-size:17px; } }
 
   .gg-coin-panel { color:#34223e; background:#fff7e8; border:2px solid #eac68b; border-radius:20px; padding:18px; margin:16px 0 24px; line-height:1.7; }
   .gg-coin-panel h3 { font-size:18px; margin:0 0 12px; }
