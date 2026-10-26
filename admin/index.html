@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-Zz5GLzwQfR+ZO57Eugg/BRuWED1UAF60RNmt6yQ0ySU='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-pfkae3LdmtPcPoZAwsCfuzKmq15NfpND0asEf6+F0WE='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プロジェクトGG 講師用</title>
@@ -1918,7 +1918,7 @@ async function prepareMissionPhoto(file) {
 function PhotoMissionPanel({admin=false,api,onSubmitted}) {
   const [items,setItems]=useState([]),[open,setOpen]=useState(false),[loaded,setLoaded]=useState(false);
   const [todayCompleted,setTodayCompleted]=useState(false),[photoDay,setPhotoDay]=useState('');
-  const [teacher,setTeacher]=useState(''),[selected,setSelected]=useState(null),[consent,setConsent]=useState(false);
+  const [teacher,setTeacher]=useState(''),[selected,setSelected]=useState(null);
   const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[images,setImages]=useState({}),[filter,setFilter]=useState('');
   const input=useRef(null),working=useRef(false);
   async function run(fn){if(working.current)return;working.current=true;setBusy(true);setMessage('');try{await fn();}catch(e){setMessage(e.message);}finally{working.current=false;setBusy(false);}}
@@ -1935,10 +1935,9 @@ function PhotoMissionPanel({admin=false,api,onSubmitted}) {
     !admin&&loaded&&open&&React.createElement('p',{role:'status',style:{fontWeight:700}},photoDay+'：'+(todayCompleted?'本日達成済み・スタンプ1個獲得！追加の写真も送れます。':'今日のミッションに挑戦しよう！写真を提出すると1スタンプ。')),
     !admin&&loaded&&open&&React.createElement('div',null,
       React.createElement('label',{style:{display:'block',margin:'12px 0'}},'先生の名前',React.createElement('input',{value:teacher,maxLength:80,disabled:busy,onChange:e=>setTeacher(e.target.value),placeholder:'例：〇〇先生',style:{...styles.input,display:'block',width:'100%',boxSizing:'border-box',marginTop:6}})),
-      React.createElement('input',{ref:input,type:'file',accept:'image/jpeg,image/png,image/webp',disabled:busy,'aria-label':'先生の写真を選ぶ',onChange:e=>{const file=e.target.files?.[0];if(!file)return;run(async()=>{setSelected(null);const image=await prepareMissionPhoto(file);setSelected({image,id:crypto.randomUUID()});setConsent(false);});}}),
+      React.createElement('input',{ref:input,type:'file',accept:'image/jpeg,image/png,image/webp',disabled:busy,'aria-label':'先生の写真を選ぶ',onChange:e=>{const file=e.target.files?.[0];if(!file)return;run(async()=>{setSelected(null);const image=await prepareMissionPhoto(file);setSelected({image,id:crypto.randomUUID()});});}}),
       selected&&React.createElement('img',{src:selected.image,alt:'送信する写真の確認',style:{display:'block',maxWidth:'100%',maxHeight:280,borderRadius:12,marginTop:12}}),
-      React.createElement('label',{style:{display:'block',margin:'16px 0',fontSize:14,lineHeight:1.8}},React.createElement('input',{type:'checkbox',checked:consent,disabled:busy,onChange:e=>setConsent(e.target.checked)}),' 写真に写っている先生から、撮影・アプリへの提出・キャラクター画像作成に使う許可をもらいました。'),
-      React.createElement('button',{type:'button',style:{...button,background:'#753e91',color:'#fff'},disabled:busy||!selected||!teacher.trim()||!consent,onClick:()=>run(async()=>{apply(await api({action:'photo_upload',id:selected.id,image:selected.image.split(',')[1],teacherName:teacher.trim(),consent}));setSelected(null);setTeacher('');setConsent(false);if(input.current)input.current.value='';setMessage('写真を提出しました！今日の達成スタンプは1個です。');if(onSubmitted)await onSubmitted();})},busy?'処理中…':'写真を提出する'),
+      React.createElement('button',{type:'button',style:{...button,background:'#753e91',color:'#fff'},disabled:busy||!selected||!teacher.trim(),onClick:()=>run(async()=>{apply(await api({action:'photo_upload',id:selected.id,image:selected.image.split(',')[1],teacherName:teacher.trim()}));setSelected(null);setTeacher('');setConsent(false);if(input.current)input.current.value='';setMessage('写真を提出しました！今日の達成スタンプは1個です。');if(onSubmitted)await onSubmitted();})},busy?'処理中…':'写真を提出する'),
       React.createElement('p',{style:{fontSize:12}},'送信時にサイズを調整し、位置情報などの付加情報を削除します。')),
     !admin&&loaded&&!open&&React.createElement('p',null,'この写真ミッションの受付は終了しました。'),
     admin&&React.createElement('label',{style:{display:'block',margin:'12px 0'}},'先生名で絞り込み ',React.createElement('input',{value:filter,onChange:e=>setFilter(e.target.value),placeholder:'先生の名前',style:styles.input})),
@@ -4293,3 +4292,4 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
 </script>
 </body>
 </html>
+

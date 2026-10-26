@@ -24,13 +24,13 @@ const deps={db,limit:async()=>{},todayStr:()=>date},row={data:{draws:[],students
 const student={role:'student',student_id:'s1'},other={role:'student',student_id:'s2'},admin={role:'admin'};
 // Valid marker structure; APP1 EXIF/GPS and comment must be removed, scan preserved.
 const jpeg=Buffer.from([255,216,255,225,0,6,71,80,83,33,255,254,0,4,65,66,255,192,0,11,8,0,1,0,1,1,1,17,0,255,218,0,8,1,1,0,0,63,0,1,2,255,0,3,255,217]);
-const upload={action:'photo_upload',id:'00000000-0000-4000-8000-000000000001',teacherName:'Test teacher',consent:true,image:jpeg.toString('base64')};
+const upload={action:'photo_upload',id:'00000000-0000-4000-8000-000000000001',teacherName:'Test teacher',image:jpeg.toString('base64')};
 const call=(b,s=student)=>ctx.photo(b,s,row,deps);
 async function denied(b,s,status){await assert.rejects(call(b,s),e=>e.status===status);}
 (async()=>{
  const clean=Buffer.from(ctx.clean(upload.image));assert.equal(clean.includes(Buffer.from('GPS!')),false);assert.equal(clean.includes(Buffer.from('AB')),false);assert.ok(clean.includes(Buffer.from([1,2,255,0,3])));
  assert.throws(()=>ctx.clean(Buffer.from('not an image').toString('base64')));
- await denied({...upload,consent:false},student,400);await denied(upload,admin,403);
+ await denied(upload,admin,403);
  await call(upload);assert.equal(files.size,1);assert.equal(uploadCount,1);
  await call(upload);assert.equal(uploadCount,1);assert.equal(entries.length,1);
  await denied(upload,other,403);
@@ -46,5 +46,5 @@ async function denied(b,s,status){await assert.rejects(call(b,s),e=>e.status===s
  await call({action:'photo_delete',id:upload.id},admin);await call({action:'photo_delete',id:upload.id},admin);assert.equal(files.size,6);
  await denied({action:'photo_read',id:upload.id},admin,404);
  await denied({action:'photo_list'},{role:'student',student_id:'removed'},401);
- console.log('PASS: private photo access, ownership, metadata stripping, validation, consent, unlimited photos and daily rewards, idempotence, admin review/download/delete, deadline and retained archive');
+ console.log('PASS: private photo access, ownership, metadata stripping, validation, upload without checkbox, unlimited photos and daily rewards, idempotence, admin review/download/delete, deadline and retained archive');
 })().catch(e=>{console.error(e);process.exitCode=1;});

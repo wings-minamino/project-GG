@@ -64,7 +64,6 @@ async function photoAction(b,session,row,{db,limit,todayStr}) {
   if(b.action==='photo_upload'){
     if(admin)photoFail(403,'生徒用画面から提出してください');
     if(todayStr()>PHOTO_END)photoFail(400,'写真ミッションの受付は終了しました');
-    if(b.consent!==true)photoFail(400,'先生の許可を確認してください');
     if(typeof b.teacherName!=='string'||!b.teacherName.trim()||b.teacherName.length>80)photoFail(400,'先生の名前を入力してください（80文字以内）');
     if(!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(b.id||''))photoFail(400,'送信IDを確認してください');
     await limit('photo:'+studentId);
