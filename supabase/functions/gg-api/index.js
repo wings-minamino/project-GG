@@ -1,3 +1,4 @@
+import {photoAction} from './photos.js';
 import {COIN_MONTH,coinSeason,coinState,coinSummary,recordCoinVisit,coinChance} from './coins.js';
 import {settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
 
@@ -290,6 +291,7 @@ export async function handler(req) {
       const saved=await db('gg_state?id=eq.1&version=eq.'+row.version,'PATCH',{version:row.version+1,data,requests:[...row.requests,{id:b.requestId,owner:requestOwner,action:b.action,result}].slice(-1000)});
       if(saved.length) return Response.json({...view(saved[0],session),result},{headers});
       row=await settleRankMonths((await db('gg_state?id=eq.1'))[0]);
+    if(typeof b.action==='string'&&b.action.startsWith('photo_'))return Response.json(await photoAction(b,session,row,{db,limit,todayStr}),{headers});
     }
     fail(409,'他の端末が更新中です。もう一度操作してください。');
   } catch(e) {return Response.json({error:e.status?e.message:'処理できませんでした。再試行してください。'},{status:e.status||500,headers});}
