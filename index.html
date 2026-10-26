@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-ATZz3Sj2MIUhuHvci1d/b+obXrOmQQ4WbD1AoNENfb0='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-PAZ1lA9RAPW94S27HVyjJxUZ7Zu7MjxuX8uMGUdOWLg='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ガチャミッション</title>
@@ -1942,16 +1942,16 @@ function PhotoMissionPanel({admin=false,api,onSubmitted}) {
   const visible=items.filter(p=>!filter||p.teacher_name.includes(filter));
   return React.createElement('section',{className:'gg-photo-mission',style:{background:'#fff8ed',color:'#37233d',border:'2px solid #e8a34a',borderRadius:20,padding:20,margin:'20px 0'}},
     React.createElement('h3',{style:{marginTop:0}},admin?'📷 特別ミッションの写真':'🎃 特別ミッション：仮装した先生を撮影しよう！'),
-    React.createElement('p',null,admin?'集まった写真を先生のキャラクター画像作成に使えます。写真は管理者だけが閲覧できます。':'先生に許可をもらって仮装姿を撮影し、写真を送ろう！提出した写真は先生のキャラクター画像づくりに使います。'),
-    React.createElement('p',{style:{fontSize:13}},admin?'非公開保存・確認後も写真は残ります。不要になった写真は削除できます。':'10月31日まで毎日挑戦！写真の枚数制限なし。達成すると1日1スタンプ（日本時間0時に切り替え）。生徒や他の人が写っていない写真を選んでね。'),
-    React.createElement('button',{type:'button',style:button,disabled:busy,onClick:()=>run(async()=>apply(await api({action:'photo_list'})))},'一覧を更新'),
+    admin&&React.createElement('p',null,'集まった写真を先生のキャラクター画像作成に使えます。写真は管理者だけが閲覧できます。'),
+    admin&&React.createElement('p',{style:{fontSize:13}},'非公開保存・確認後も写真は残ります。不要になった写真は削除できます。'),
+    admin&&React.createElement('button',{type:'button',style:button,disabled:busy,onClick:()=>run(async()=>apply(await api({action:'photo_list'})))},'一覧を更新'),
     !loaded&&React.createElement('p',null,'読み込み中…'),
     !admin&&loaded&&open&&React.createElement('p',{role:'status',style:{fontWeight:700}},photoDay+'：'+(todayCompleted?'本日達成済み・スタンプ1個獲得！追加の写真も送れます。':'今日のミッションに挑戦しよう！写真を提出すると1スタンプ。')),
     !admin&&loaded&&open&&React.createElement('div',null,
       React.createElement('label',{style:{display:'block',margin:'12px 0'}},'先生の名前',React.createElement('input',{value:teacher,maxLength:80,disabled:busy,onChange:e=>setTeacher(e.target.value),placeholder:'例：〇〇先生',style:{...styles.input,display:'block',width:'100%',boxSizing:'border-box',marginTop:6}})),
       React.createElement('input',{ref:input,type:'file',accept:'image/jpeg,image/png,image/webp',disabled:busy,'aria-label':'先生の写真を選ぶ',onChange:e=>{const file=e.target.files?.[0];if(!file)return;run(async()=>{setSelected(null);const image=await prepareMissionPhoto(file);setSelected({image,id:crypto.randomUUID()});});}}),
       selected&&React.createElement('img',{src:selected.image,alt:'送信する写真の確認',style:{display:'block',maxWidth:'100%',maxHeight:280,borderRadius:12,marginTop:12}}),
-      React.createElement('button',{type:'button',style:{...button,background:'#753e91',color:'#fff'},disabled:busy||!selected||!teacher.trim(),onClick:()=>run(async()=>{apply(await api({action:'photo_upload',id:selected.id,image:selected.image.split(',')[1],teacherName:teacher.trim()}));setSelected(null);setTeacher('');setConsent(false);if(input.current)input.current.value='';setMessage('写真を提出しました！今日の達成スタンプは1個です。');if(onSubmitted)await onSubmitted();})},busy?'処理中…':'写真を提出する'),
+      React.createElement('button',{type:'button',style:{...button,background:'#753e91',color:'#fff'},disabled:busy||!selected||!teacher.trim(),onClick:()=>run(async()=>{apply(await api({action:'photo_upload',id:selected.id,image:selected.image.split(',')[1],teacherName:teacher.trim()}));setSelected(null);setTeacher('');if(input.current)input.current.value='';setMessage('写真を提出しました！今日の達成スタンプは1個です。');if(onSubmitted)await onSubmitted();})},busy?'処理中…':'写真を提出する'),
       React.createElement('p',{style:{fontSize:12}},'送信時にサイズを調整し、位置情報などの付加情報を削除します。')),
     !admin&&loaded&&!open&&React.createElement('p',null,'この写真ミッションの受付は終了しました。'),
     admin&&React.createElement('label',{style:{display:'block',margin:'12px 0'}},'先生名で絞り込み ',React.createElement('input',{value:filter,onChange:e=>setFilter(e.target.value),placeholder:'先生の名前',style:styles.input})),
