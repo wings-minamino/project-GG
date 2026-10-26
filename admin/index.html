@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-3fWiU0aAd71kRRMy74a+jE15CU8E6vIM+H6yYIpIuZg='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-So4LY4TgyqOV4fyph2dpXjw45e5qpP9QAIKAiN9May0='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プロジェクトGG 講師用</title>
@@ -2066,7 +2066,7 @@ function StudentMissionView({
     style: styles.issuedTag
   }, "\u5148\u751F\u304B\u3089"), d.isTestMission && /*#__PURE__*/React.createElement("span", {
     style: styles.testTag
-  }, "\u30C6\u30B9\u30C8\u671F\u9593\u9650\u5B9A")), d.deadline && /*#__PURE__*/React.createElement("div", {
+  }, "\u671F\u9593\u9650\u5B9A")), d.deadline && /*#__PURE__*/React.createElement("div", {
     style: isDrawOverdue(d) ? styles.overdueText : styles.deadlineText
   }, isDrawOverdue(d) ? `期限切れ(${d.deadline}まで)` : `期限: ${d.deadline}`)), d.status === "進行中" ? /*#__PURE__*/React.createElement("button", {
     className:"gg-primary",
@@ -2312,7 +2312,7 @@ function IssuedMissionHistory({ history, students, onCancel }) {
         React.createElement("div", { style: styles.approveStudent }, name, number ? `（${number}）` : ""),
         React.createElement("div", { className:"gg-readable-copy",
     style: styles.missionText }, d.missionText),
-        React.createElement("div", { style: styles.studentMeta }, `${d.isTestMission ? "テスト期間限定" : "通常ミッション"} ／ 送信：${dateLabel(d.issuedAt || d.drawnAt)} ／ 期限：${d.deadline || "なし"}`),
+        React.createElement("div", { style: styles.studentMeta }, `${d.isTestMission ? "期間限定" : "通常ミッション"} ／ 送信：${dateLabel(d.issuedAt || d.drawnAt)} ／ 期限：${d.deadline || "なし"}`),
         React.createElement("div", { style: { marginTop: 8, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
           React.createElement("span", { style: styles.studentMeta }, d.status),
           canCancelIssuedMission(d) && React.createElement("button", { style: styles.rejectBtn, onClick: () => onCancel(d.id) }, "送信を取り消す")),
@@ -2625,7 +2625,7 @@ function AdminView(props) {
     onChange: e => setDailyPullLimit(Number(e.target.value) || 0)
   }), /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
-  }, "0\u307E\u305F\u306F\u672A\u5165\u529B\u306E\u5834\u5408\u306F\u4E0A\u9650\u306A\u3057\u306B\u306A\u308A\u307E\u3059\u3002\u5148\u751F\u304B\u3089\u9001\u3089\u308C\u305F\u30DF\u30C3\u30B7\u30E7\u30F3\u3084\u30C6\u30B9\u30C8\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3\u306F\u3053\u306E\u56DE\u6570\u306B\u542B\u307E\u308C\u307E\u305B\u3093\u3002")), /*#__PURE__*/React.createElement("h4", {
+  }, "0\u307E\u305F\u306F\u672A\u5165\u529B\u306E\u5834\u5408\u306F\u4E0A\u9650\u306A\u3057\u306B\u306A\u308A\u307E\u3059\u3002\u5148\u751F\u304B\u3089\u9001\u3089\u308C\u305F\u30DF\u30C3\u30B7\u30E7\u30F3\u3084\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3\u306F\u3053\u306E\u56DE\u6570\u306B\u542B\u307E\u308C\u307E\u305B\u3093\u3002")), /*#__PURE__*/React.createElement("h4", {
     style: {
       ...styles.subHeading,
       marginTop: 22
@@ -2685,7 +2685,7 @@ function AdminView(props) {
       ...styles.subHeading,
       marginTop: 24
     }
-  }, "\u30C6\u30B9\u30C8\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3(\u30AC\u30C1\u30E3\u306B\u306F\u51FA\u306A\u3044)"), /*#__PURE__*/React.createElement("div", {
+  }, "\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3(\u30AC\u30C1\u30E3\u306B\u306F\u51FA\u306A\u3044)"), /*#__PURE__*/React.createElement("div", {
     style: styles.newMissionForm
   }, /*#__PURE__*/React.createElement("input", {
     style: styles.input,
@@ -2726,9 +2726,9 @@ function AdminView(props) {
   }, "\xD7"))), testMissions.length === 0 && /*#__PURE__*/React.createElement("div", {
     className:"gg-empty-message",
     style: styles.emptyBox
-  }, "\u30C6\u30B9\u30C8\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u8FFD\u52A0\u3057\u3066\u304F\u3060\u3055\u3044")), /*#__PURE__*/React.createElement("div", {
+  }, "\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u8FFD\u52A0\u3057\u3066\u304F\u3060\u3055\u3044")), /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
-  }, "\u30C6\u30B9\u30C8\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3\u306F\u300C\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u9001\u308B\u300D\u30BF\u30D6\u304B\u3089\u751F\u5F92\u306B\u914D\u5E03\u3057\u3066\u304F\u3060\u3055\u3044\u3002"), /*#__PURE__*/React.createElement("h4", {
+  }, "\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3\u306F\u300C\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u9001\u308B\u300D\u30BF\u30D6\u304B\u3089\u751F\u5F92\u306B\u914D\u5E03\u3057\u3066\u304F\u3060\u3055\u3044\u3002"), /*#__PURE__*/React.createElement("h4", {
     style: {
       ...styles.subHeading,
       marginTop: 24
@@ -3144,7 +3144,7 @@ function AdminView(props) {
     key: m.id,
     value: m.id
   }, m.text, "(\u671F\u9650: ", m.deadlineDays, "\u65E5)"))), /*#__PURE__*/React.createElement("optgroup", {
-    label: "\u30C6\u30B9\u30C8\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3"
+    label: "\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3"
   }, testMissions.map(tm => /*#__PURE__*/React.createElement("option", {
     key: tm.id,
     value: tm.id
