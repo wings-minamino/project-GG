@@ -53,7 +53,12 @@ async function photoAction(b,session,row,{db,limit,todayStr}) {
   const query='gg_photo_submissions?event=eq.'+PHOTO_EVENT;
   const list=async()=>{
     const items=await db(query+(admin?'':'&student_id=eq.'+encodeURIComponent(studentId)+'&status=in.(submitted,reviewed)')+'&order=created_at.desc&limit=1000');
-    return {items:items.map(({object_path,...p})=>({...p,...(admin?{studentName:row.data.students.find(s=>s.id===p.student_id)?.name||'削除済みの生徒'}:{})})),deadline:PHOTO_END,open:todayStr()<=PHOTO_END};
+    return {items:items.map(({object_path,...p})=>({...p,...(admin?{studentName:row.data.students.find(s=>s.id===p.student_id)?.name||'削除済みの生徒'}:{})})),deadline:PHOTO_END,open:todayStr()<=PHOTO_END,today:todayStr(),todayCompleted:!admin&&row.data.draws.some(d=>d.studentId===studentId&&d.photoRewardDay===todayStr())};
+  };
+  const complete=async()=>{
+    if(!await db('rpc/gg_complete_photo','POST',{photo_id:b.id,owner_id:studentId}))photoFail(409,'写真が削除されました。先生に確認してください');
+    row=(await db('gg_state?id=eq.1'))[0];
+    return list();
   };
   if(b.action==='photo_list')return list();
   if(b.action==='photo_upload'){
@@ -65,17 +70,15 @@ async function photoAction(b,session,row,{db,limit,todayStr}) {
     await limit('photo:'+studentId);
     const existing=(await db('gg_photo_submissions?id=eq.'+b.id))[0];
     if(existing&&(existing.student_id!==studentId||existing.event!==PHOTO_EVENT||existing.status==='deleting'))photoFail(403,'この写真は操作できません');
-    if(existing&&existing.status!=='uploading')return list();
+    if(existing&&existing.status!=='uploading')return complete();
     const bytes=cleanPhotoJPEG(b.image);
     if(!existing){
-      // Slot reservation is enforced atomically by the database RPC (5 per student).
-      if(!await db('rpc/gg_reserve_photo','POST',{photo_id:b.id,owner_id:studentId,teacher:b.teacherName.trim()}))photoFail(429,'写真は1人5枚までです。先生に確認してください');
+      // Reserve the unique upload ID; there is no per-student photo count limit.
+      if(!await db('rpc/gg_reserve_photo','POST',{photo_id:b.id,owner_id:studentId,teacher:b.teacherName.trim()}))photoFail(409,'この送信IDは利用できません。写真を選び直してください');
     }
     const path=PHOTO_EVENT+'/'+b.id+'.jpg';
     await photoStorage('object/'+PHOTO_BUCKET+'/'+path,'POST',bytes);
-    const saved=await db('gg_photo_submissions?id=eq.'+b.id+'&status=eq.uploading','PATCH',{status:'submitted'});
-    if(!saved.length){await photoStorage('object/'+PHOTO_BUCKET,'DELETE',{prefixes:[path]});photoFail(409,'写真が削除されました。先生に確認してください');}
-    return list();
+    return complete();
   }
   if(!admin)photoFail(403,'写真の閲覧・管理は管理者のみできます');
   if(!/^[0-9a-f-]{36}$/.test(b.id||''))photoFail(400,'写真を選んでください');

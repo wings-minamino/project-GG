@@ -15,6 +15,7 @@ async function dbFetch(url,opts){
   const u=new URL(url),table=u.pathname.split('/').at(-1),b=opts.body?JSON.parse(opts.body):null;
   let result;
   if(table==='gg_credentials'){const c=credentials.find(c=>c.role===u.searchParams.get('role').slice(3));if(opts.method==='PATCH'){if(u.searchParams.get('version').slice(3)!==c.version)result=[];else{Object.assign(c,b);result=[c];}}else result=c?[c]:[];}
+  else if(table==='gg_photo_submissions')result=[];
   else if(table==='gg_login_attempt')result=true;
   else if(table==='gg_sessions'){
     if(opts.method==='POST'){sessions.push(b);result=[b];}
@@ -31,7 +32,8 @@ async function dbFetch(url,opts){
 }
 const ctx=vm.createContext({crypto:{subtle:globalThis.crypto.subtle,randomUUID:()=>globalThis.crypto.randomUUID(),getRandomValues:a=>a instanceof Uint32Array&&a.length===1?a.fill(4294967295):globalThis.crypto.getRandomValues(a)},Uint32Array,TextEncoder,Response,Request,fetch:dbFetch,Deno:{env:{get:()=> 'https://example.test'}},structuredClone,Date,console});
 const coins=fs.readFileSync(root+'/supabase/functions/gg-api/coins.js','utf8').replace(/^import[^\n]+\n/gm,'').replace(/export \{[^}]+\};/,'');
-vm.runInContext(helpers+'\n'+coins+'\n'+source+'\nglobalThis.handle=handler;',ctx);
+const photos=fs.readFileSync(root+'/supabase/functions/gg-api/photos.js','utf8').replace(/export \{[^}]+\};/,'');
+vm.runInContext(photos+'\n'+helpers+'\n'+coins+'\n'+source+'\nglobalThis.handle=handler;',ctx);
 async function rawCall(body,token){const r=await ctx.handle(new Request('https://test/',{method:'POST',headers:token?{Authorization:'Bearer '+token}:{},body:JSON.stringify(body)}));return {status:r.status,...await r.json()};}
 async function call(body,token){if(body.action==='login'&&body.number!==undefined)body={role:'student',...body};return rawCall(body,token);}
 (async()=>{
@@ -50,6 +52,8 @@ async function call(body,token){if(body.action==='login'&&body.number!==undefine
   assert.equal((await rawCall(null)).status,400);
   assert.equal((await call({action:'login',number:'missing'})).status,401);
   assert.equal((await call({action:'login',role:'admin'})).status,401);
+  assert.equal((await call({action:'photo_list'},student)).status,200);
+  assert.equal((await call({action:'photo_read',id:'00000000-0000-4000-8000-000000000001'},student)).status,403);
   const beforeLegacy=sessions[0].credential_version; sessions[0].credential_version=null;
   assert.equal((await call({action:'get'},admin)).status,401);sessions[0].credential_version=beforeLegacy;
   row.data.privateFutureField={secret:'must-not-leak'};

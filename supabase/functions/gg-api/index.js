@@ -162,6 +162,7 @@ export async function handler(req) {
       return Response.json({ok:true},{headers});
     }
     row=await settleCoinVisit(await settleRankMonths((await db('gg_state?id=eq.1'))[0]),session);
+    if(typeof b.action==='string'&&b.action.startsWith('photo_'))return Response.json(await photoAction(b,session,row,{db,limit,todayStr}),{headers});
     if(b.action==='get') return Response.json(session.role==='admin'&&b.version===row.version?{version:row.version,unchanged:true}:view(row,session),{headers});
     if(typeof b.requestId!=='string'||b.requestId.length>100) fail(400,'requestId required');
     const requestOwner=session.role+':'+(session.student_id||'admin');
@@ -177,7 +178,7 @@ export async function handler(req) {
         if(b.action==='save'&&(!data||b.version!==row.version)) fail(409,'別の端末で更新されました。最新情報を確認してもう一度操作してください。');
         validate(b.data);
         // This collection is managed by explicit actions; older clients must not erase it.
-        data=derived({...b.data,halloweenCoins:data?.halloweenCoins||{stampCost:null,entries:[],loginDays:{}},draws:[...b.data.draws.filter(d=>!d.coinReward),...(data?.draws||[]).filter(d=>d.coinReward)],missionSuggestions:data?.missionSuggestions||[],prizeClaims:data?.prizeClaims||{},rankPrizeMonth:data?.rankPrizeMonth||rewardMonth(),rankPrizeHistory:data?.rankPrizeHistory||{},rankRules:data?.rankRules||null,rankMonth:data?.rankMonth||null,studentRanks:data?.studentRanks||{},rankHistory:data?.rankHistory||{}});
+        data=derived({...b.data,halloweenCoins:data?.halloweenCoins||{stampCost:null,entries:[],loginDays:{}},draws:[...b.data.draws.filter(d=>!d.coinReward&&!d.photoReward),...(data?.draws||[]).filter(d=>d.coinReward||d.photoReward)],missionSuggestions:data?.missionSuggestions||[],prizeClaims:data?.prizeClaims||{},rankPrizeMonth:data?.rankPrizeMonth||rewardMonth(),rankPrizeHistory:data?.rankPrizeHistory||{},rankRules:data?.rankRules||null,rankMonth:data?.rankMonth||null,studentRanks:data?.studentRanks||{},rankHistory:data?.rankHistory||{}});
       } else if(b.action==='set_coin_cost') {
         if(session.role!=='admin'||!data)fail(403,'管理者のみ操作できます');
         if(!coinSeason())fail(403,'10月限定の設定です');
@@ -291,7 +292,6 @@ export async function handler(req) {
       const saved=await db('gg_state?id=eq.1&version=eq.'+row.version,'PATCH',{version:row.version+1,data,requests:[...row.requests,{id:b.requestId,owner:requestOwner,action:b.action,result}].slice(-1000)});
       if(saved.length) return Response.json({...view(saved[0],session),result},{headers});
       row=await settleRankMonths((await db('gg_state?id=eq.1'))[0]);
-    if(typeof b.action==='string'&&b.action.startsWith('photo_'))return Response.json(await photoAction(b,session,row,{db,limit,todayStr}),{headers});
     }
     fail(409,'他の端末が更新中です。もう一度操作してください。');
   } catch(e) {return Response.json({error:e.status?e.message:'処理できませんでした。再試行してください。'},{status:e.status||500,headers});}
