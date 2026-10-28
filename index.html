@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-sYxAEiasy3J5tEwgl6CxLZkSZQMlFNNj784bGWBRv18='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-HHGkasyt6/jWd0jScEqDM1DvIiatwidU8J/cLHlbItE='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ガチャミッション</title>
@@ -1916,6 +1916,10 @@ function GachaReveal({phase,result,onSkip}) {
     !done&&phase!=='waiting'&&onSkip&&h('button',{type:'button',className:'gg-reveal-skip',onClick:onSkip},'演出をスキップ'));
 }
 
+function SpecialMissionBadge() {
+  return React.createElement('span',{className:'gg-special-badge'},
+    React.createElement('span',{'aria-hidden':true},'★'),'特別ミッション');
+}
 async function prepareMissionPhoto(file) {
   if(!file||file.size>20*1024*1024)throw Error('20MB以内の写真を選んでください');
   if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw Error('JPEG・PNG・WebPの写真を選んでください。HEICはJPEGに変換してください');
@@ -1940,8 +1944,9 @@ function PhotoMissionPanel({admin=false,api,onSubmitted}) {
   useEffect(()=>{let alive=true;api({action:'photo_list'}).then(r=>{if(alive)apply(r);}).catch(e=>{if(alive)setMessage(e.message);});const refresh=()=>{if(!working.current)api({action:'photo_list'}).then(r=>{if(alive)apply(r);}).catch(()=>{});};const timer=setInterval(refresh,60000);window.addEventListener('focus',refresh);return()=>{alive=false;clearInterval(timer);window.removeEventListener('focus',refresh);};},[]);
   const button={...styles.smallBtn,padding:'10px 14px',margin:'4px 6px 4px 0'};
   const visible=items.filter(p=>!filter||p.teacher_name.includes(filter));
-  return React.createElement('section',{className:'gg-photo-mission',style:{background:'#fff8ed',color:'#37233d',border:'2px solid #e8a34a',borderRadius:20,padding:20,margin:'20px 0'}},
-    React.createElement('h3',{style:{marginTop:0}},admin?'📷 特別ミッションの写真':'🎃 特別ミッション：仮装した先生を撮影しよう！'),
+  return React.createElement('section',{className:'gg-photo-mission gg-special-mission',style:{background:'#fff8ed',color:'#37233d',border:'2px solid #e8a34a',borderRadius:20,padding:20,margin:'20px 0'}},
+    React.createElement('div',{className:'gg-special-mission-meta'},React.createElement(SpecialMissionBadge)),
+    React.createElement('h3',{style:{margin:'0 0 12px'}},admin?'写真の提出・確認':'仮装した先生を撮影しよう！'),
     admin&&React.createElement('p',null,'集まった写真を先生のキャラクター画像作成に使えます。写真は管理者だけが閲覧できます。'),
     admin&&React.createElement('p',{style:{fontSize:13}},'非公開保存・確認後も写真は残ります。不要になった写真は削除できます。'),
     admin&&React.createElement('button',{type:'button',style:button,disabled:busy,onClick:()=>run(async()=>apply(await api({action:'photo_list'})))},'一覧を更新'),
@@ -2048,7 +2053,7 @@ function StudentMissionView({
     style: styles.emptyBox
   }, "\u30AC\u30C1\u30E3\u3092\u5F15\u3044\u3066\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u624B\u306B\u5165\u308C\u3088\u3046"), myActive.map(d => /*#__PURE__*/React.createElement("div", {
     key: d.id,
-    className:"gg-mission-card",
+    className:d.isTestMission ? "gg-mission-card gg-special-mission" : "gg-mission-card",
     style: styles.missionCard
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2059,14 +2064,12 @@ function StudentMissionView({
     style: {
       flex: 1
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, d.isTestMission && React.createElement("div",{className:"gg-special-mission-meta"},React.createElement(SpecialMissionBadge)), /*#__PURE__*/React.createElement("div", {
     className:"gg-readable-copy",
     style: styles.missionText
   }, d.missionText, d.issuedByAdmin && /*#__PURE__*/React.createElement("span", {
     style: styles.issuedTag
-  }, "\u5148\u751F\u304B\u3089"), d.isTestMission && /*#__PURE__*/React.createElement("span", {
-    style: styles.testTag
-  }, "\u671F\u9593\u9650\u5B9A")), d.deadline && /*#__PURE__*/React.createElement("div", {
+  }, "\u5148\u751F\u304B\u3089")), d.deadline && /*#__PURE__*/React.createElement("div", {
     style: isDrawOverdue(d) ? styles.overdueText : styles.deadlineText
   }, isDrawOverdue(d) ? `期限切れ(${d.deadline}まで)` : `期限: ${d.deadline}`)), d.status === "進行中" ? /*#__PURE__*/React.createElement("button", {
     className:"gg-primary",
@@ -2308,11 +2311,12 @@ function IssuedMissionHistory({ history, students, onCancel }) {
       const student = students.find(s => s.id === d.studentId);
       const name = d.recipientName || student?.name || "削除済みの生徒";
       const number = d.recipientNumber || student?.number || "";
-      return React.createElement("div", { key: d.id, style: styles.missionCard },
+      return React.createElement("div", { key: d.id, className:d.isTestMission ? "gg-special-mission" : undefined, style: styles.missionCard },
+        d.isTestMission && React.createElement(SpecialMissionBadge),
         React.createElement("div", { style: styles.approveStudent }, name, number ? `（${number}）` : ""),
         React.createElement("div", { className:"gg-readable-copy",
     style: styles.missionText }, d.missionText),
-        React.createElement("div", { style: styles.studentMeta }, `${d.isTestMission ? "テスト期間限定" : "通常ミッション"} ／ 送信：${dateLabel(d.issuedAt || d.drawnAt)} ／ 期限：${d.deadline || "なし"}`),
+        React.createElement("div", { style: styles.studentMeta }, `${d.isTestMission ? "特別ミッション" : "通常ミッション"} ／ 送信：${dateLabel(d.issuedAt || d.drawnAt)} ／ 期限：${d.deadline || "なし"}`),
         React.createElement("div", { style: { marginTop: 8, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
           React.createElement("span", { style: styles.studentMeta }, d.status),
           canCancelIssuedMission(d) && React.createElement("button", { style: styles.rejectBtn, onClick: () => onCancel(d.id) }, "送信を取り消す")),
@@ -2550,6 +2554,7 @@ function AdminView(props) {
     style: styles.approveList
   }, pendingApprovals.map(d => /*#__PURE__*/React.createElement("div", {
     key: d.id,
+    className:d.isTestMission ? "gg-special-mission" : undefined,
     style: styles.approveRow
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2560,7 +2565,7 @@ function AdminView(props) {
     style: styles.approveInfo
   }, /*#__PURE__*/React.createElement("div", {
     style: {...styles.approveStudent,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',fontSize:16,color:'#2B2626',fontWeight:700,marginBottom:6}
-  }, studentName(d.studentId)), /*#__PURE__*/React.createElement("div", {
+  }, studentName(d.studentId), d.isTestMission && React.createElement(SpecialMissionBadge)), /*#__PURE__*/React.createElement("div", {
     style: styles.approveMission
   }, d.missionText), /*#__PURE__*/React.createElement("div", {
     style: styles.approveDate
@@ -2625,7 +2630,7 @@ function AdminView(props) {
     onChange: e => setDailyPullLimit(Number(e.target.value) || 0)
   }), /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
-  }, "0\u307E\u305F\u306F\u672A\u5165\u529B\u306E\u5834\u5408\u306F\u4E0A\u9650\u306A\u3057\u306B\u306A\u308A\u307E\u3059\u3002\u5148\u751F\u304B\u3089\u9001\u3089\u308C\u305F\u30DF\u30C3\u30B7\u30E7\u30F3\u3084\u30C6\u30B9\u30C8\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3\u306F\u3053\u306E\u56DE\u6570\u306B\u542B\u307E\u308C\u307E\u305B\u3093\u3002")), /*#__PURE__*/React.createElement("h4", {
+  }, "0\u307E\u305F\u306F\u672A\u5165\u529B\u306E\u5834\u5408\u306F\u4E0A\u9650\u306A\u3057\u306B\u306A\u308A\u307E\u3059\u3002\u5148\u751F\u304B\u3089\u9001\u3089\u308C\u305F\u30DF\u30C3\u30B7\u30E7\u30F3\u3084特別ミッション\u306F\u3053\u306E\u56DE\u6570\u306B\u542B\u307E\u308C\u307E\u305B\u3093\u3002")), /*#__PURE__*/React.createElement("h4", {
     style: {
       ...styles.subHeading,
       marginTop: 22
@@ -2685,7 +2690,7 @@ function AdminView(props) {
       ...styles.subHeading,
       marginTop: 24
     }
-  }, "\u30C6\u30B9\u30C8\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3(\u30AC\u30C1\u30E3\u306B\u306F\u51FA\u306A\u3044)"), /*#__PURE__*/React.createElement("div", {
+  }, React.createElement("span",{className:"gg-special-heading"},"特別ミッション"), "（ガチャには出ない）"), /*#__PURE__*/React.createElement("div", {
     style: styles.newMissionForm
   }, /*#__PURE__*/React.createElement("input", {
     style: styles.input,
@@ -2718,17 +2723,18 @@ function AdminView(props) {
     style: styles.missionAdminList
   }, testMissions.map(tm => /*#__PURE__*/React.createElement("div", {
     key: tm.id,
+    className:"gg-special-mission",
     style: styles.missionAdminRow
-  }, /*#__PURE__*/React.createElement("span", null, tm.text, "(\u671F\u9650: ", tm.deadline, " / +", tm.stampReward, "\u500B)"), /*#__PURE__*/React.createElement("button", {
+  }, React.createElement(SpecialMissionBadge), /*#__PURE__*/React.createElement("span", null, tm.text, "(\u671F\u9650: ", tm.deadline, " / +", tm.stampReward, "\u500B)"), /*#__PURE__*/React.createElement("button", {
     style: styles.deleteBtn,
     onClick: () => removeTestMission(tm.id),
     "aria-label": "\u524A\u9664"
   }, "\xD7"))), testMissions.length === 0 && /*#__PURE__*/React.createElement("div", {
     className:"gg-empty-message",
     style: styles.emptyBox
-  }, "\u30C6\u30B9\u30C8\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u8FFD\u52A0\u3057\u3066\u304F\u3060\u3055\u3044")), /*#__PURE__*/React.createElement("div", {
+  }, "特別ミッション\u3092\u8FFD\u52A0\u3057\u3066\u304F\u3060\u3055\u3044")), /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
-  }, "\u30C6\u30B9\u30C8\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3\u306F\u300C\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u9001\u308B\u300D\u30BF\u30D6\u304B\u3089\u751F\u5F92\u306B\u914D\u5E03\u3057\u3066\u304F\u3060\u3055\u3044\u3002"), /*#__PURE__*/React.createElement("h4", {
+  }, "特別ミッション\u306F\u300C\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u9001\u308B\u300D\u30BF\u30D6\u304B\u3089\u751F\u5F92\u306B\u914D\u5E03\u3057\u3066\u304F\u3060\u3055\u3044\u3002"), /*#__PURE__*/React.createElement("h4", {
     style: {
       ...styles.subHeading,
       marginTop: 24
@@ -3144,11 +3150,11 @@ function AdminView(props) {
     key: m.id,
     value: m.id
   }, m.text, "(\u671F\u9650: ", m.deadlineDays, "\u65E5)"))), /*#__PURE__*/React.createElement("optgroup", {
-    label: "\u30C6\u30B9\u30C8\u671F\u9593\u9650\u5B9A\u30DF\u30C3\u30B7\u30E7\u30F3"
+    label: "特別ミッション"
   }, testMissions.map(tm => /*#__PURE__*/React.createElement("option", {
     key: tm.id,
     value: tm.id
-  }, tm.text, "(\u671F\u9650: ", tm.deadline, " / +", tm.stampReward, "\u500B)")))), /*#__PURE__*/React.createElement("h4", {
+  }, "【特別ミッション】", tm.text, "(\u671F\u9650: ", tm.deadline, " / +", tm.stampReward, "\u500B)")))), /*#__PURE__*/React.createElement("h4", {
     style: styles.subHeading
   }, "\u9001\u308B\u76F8\u624B\u3092\u9078\u3076(", selectedStudentIds.length, "\u4EBA\u9078\u629E\u4E2D)"), /*#__PURE__*/React.createElement("div", {
     style: styles.newMissionForm
@@ -3534,6 +3540,12 @@ const css = `
   button, select, input { font-family: 'Noto Sans JP', sans-serif; }
   button:disabled { opacity: 0.5; cursor: default; }
   select:focus, input:focus, button:focus { outline: 2px solid #E4222A; outline-offset: 1px; }
+
+  .gg-special-mission,.halloween-theme .gg-mission-card.gg-special-mission { background:linear-gradient(135deg,#fff9eb,#fff1d6)!important; border:2px solid #cb913b!important; border-left:6px solid #a5651c!important; box-shadow:0 4px 12px #7c53100d; }
+  .gg-special-mission .gg-special-badge,.gg-special-badge { display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border:1px solid #67338c; border-radius:999px; background:#67338c!important; color:#fff!important; font-size:12px!important; font-weight:800; line-height:1.5; white-space:nowrap; vertical-align:middle; flex-shrink:0; }
+  .gg-special-mission-meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+  .gg-special-heading { display:inline-block; padding:5px 10px; margin-right:6px; border-left:4px solid #a5651c; border-radius:5px; background:#fff1d6; color:#51266e; }
+  .gg-special-mission .gg-readable-copy { overflow-wrap:anywhere; }
 
   .gg-reveal { position:relative; isolation:isolate; overflow:hidden; margin:20px auto 0; padding:24px 16px; border:2px solid #b788e2; border-radius:22px; background:radial-gradient(ellipse at center,#643093,#21103d 78%); color:#fff7dc; text-align:center; min-height:170px; box-sizing:border-box; }
   .gg-reveal-copy { position:relative; z-index:2; }
