@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-vdqcopNTzO3NHQouNxqg5E/ymwKpdsLAYA8nM1NU6Qw='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-y/zC60GxuMqb4dhSo5+Ii/RbdQJ3TPlp1i6WSk8UJ8A='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プロジェクトGG 講師用</title>
@@ -1883,7 +1883,7 @@ function CoinCommunityGoal({coins,studentId,admin=false}) {
       h('span',{className:'gg-community-icon','aria-hidden':true},reached?'🎉':'🍬')),
     h('div',{className:'gg-community-numbers'},h('span',null,'1コイン以上獲得 ',h('strong',null,count),` / ${target}人`),h('strong',null,reached?'目標達成！':`あと${remaining}人`)),
     h('div',{className:'gg-community-track',role:'progressbar','aria-label':'1コイン以上獲得した人数','aria-valuemin':0,'aria-valuemax':target,'aria-valuenow':Math.min(count,target),'aria-valuetext':`${count}人が獲得、目標${target}人`},h('span',{style:{width:Math.min(100,count/target*100)+'%'}})),
-    h('p',{className:'gg-community-message'},reached?(admin?'目標達成！お菓子の種類を追加し、生徒にお知らせしてください。':'追加するお菓子と開始日は、先生からのお知らせを待ってね。'):admin?'25人に達したら、お菓子の種類を追加する目標です。':!eligible?'確認用アカウントは人数に含まれません。':contributed?'あなたの1コインも、みんなの目標にカウント済み！':'最初の1コインで、みんなの目標に参加しよう。'),
+    (admin||eligible||reached)&&h('p',{className:'gg-community-message'},reached?(admin?'目標達成！お菓子の種類を追加し、生徒にお知らせしてください。':'追加するお菓子と開始日は、先生からのお知らせを待ってね。'):admin?'25人に達したら、お菓子の種類を追加する目標です。':contributed?'あなたの1コインも、みんなの目標にカウント済み！':'最初の1コインで、みんなの目標に参加しよう。'),
     h('p',{className:'gg-community-note'},'スタンプ交換・ガチャ当選のどちらでもOK。1人1カウント。',admin?'確認用アカウントは除外し、受け取り待ちも含みます。':''));
 }
 function HalloweenCoinPanel({coins,draws,studentId,onAction}) {

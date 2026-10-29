@@ -44,7 +44,7 @@ for(const file of ['index.html','admin/index.html']){
     assert.match(text(render(count,{admin:true})),/お菓子の種類を追加し/);
   }
   assert.match(text(render(2,{coins:{communityGoal:{count:2,target:25},entries:[{studentId:'s1',source:'gacha'}]}})),/カウント済み/);
-  assert.match(text(render(2,{studentId:'sirxz3gy'})),/確認用アカウントは人数に含まれません/);
+  assert.doesNotMatch(text(render(2,{studentId:'sirxz3gy'})),/確認用アカウント|カウント済み|最初の1コインで/);
   assert.equal(ui.CoinCommunityGoal({coins:{entries:[]},studentId:'s1'}),null,'never substitute a private count for a missing global aggregate');
 }
 console.log('PASS: unique coin earners, verification exclusion, 24/25/26 threshold, private API histories, read-only derived counts and student/admin displays');
