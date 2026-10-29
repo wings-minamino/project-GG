@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-wef9m7oD1A1+8snIvku7qREyt6U4eC4IevyeYi7FNuY='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-UJUj2lEuJWZVWKlvZeU66zuv6WeeWs2B0gOhNCNKIHw='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プロジェクトGG 講師用</title>
@@ -1425,7 +1425,7 @@ function GachaMissionApp() {
     style: studentTab === "prize" ? styles.subTabActive : styles.subTab,
     onClick: () => setStudentTab("prize")
   }, "\u666F\u54C1"), React.createElement('button',{className:studentTab==='ranking'?'gg-tab-active':'gg-tab-inactive',style:studentTab==='ranking'?styles.subTabActive:styles.subTab,onClick:()=>setStudentTab('ranking')},'ランキング')), studentTab==='ranking' ? React.createElement(StudentRankingView,{rankPanel:studentRankPanel,draws,students,currentStudentId,month:monthKey(new Date(suggestionNow+9*3600000).toISOString()),isMobile}) : studentTab === "mission" ? React.createElement('div',null, /*#__PURE__*/React.createElement(StudentMissionView, {
-    rankPanel:studentRankPanel,coinPanel,coinSpent,photoPanel:React.createElement(PhotoMissionPanel,{api,onSubmitted:async()=>applyCloud(await api({action:"get"}))}),
+    rankPanel:studentRankPanel,coinPanel,coinSpent,coinProgress:studentCoinProgress(halloweenCoins,draws,currentStudentId),photoPanel:React.createElement(PhotoMissionPanel,{api,onSubmitted:async()=>applyCloud(await api({action:"get"}))}),
     studentName: studentName(currentStudentId),
     missionsAvailable: myEligibleMissionCount,
     dailyPullLimit: dailyPullLimit,
@@ -1855,14 +1855,18 @@ function LoginScreen({
     onClick: submitAdminLogin
   }, "\u30ED\u30B0\u30A4\u30F3"))));
 }
-function HalloweenCoinPanel({coins,draws,studentId,onAction}) {
-  const h=React.createElement,[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+function studentCoinProgress(coins,draws,studentId) {
   const entries=(coins.entries||[]).filter(e=>e.studentId===studentId);
   const total=stampsForStudentMonth(draws,studentId,'2026-10');
   const spent=entries.filter(e=>e.source==='exchange').reduce((n,e)=>n+e.stampCost,0),available=Math.max(0,total-spent);
   const active=currentMonthKey()==='2026-10',cost=coins.stampCost;
   const ready=!!cost&&available>=cost,remaining=cost?Math.max(0,cost-available):0;
   const exchangeable=cost?Math.floor(available/cost):0,waiting=entries.filter(e=>!e.deliveredAt).length;
+  return {entries,total,spent,available,active,cost,ready,remaining,exchangeable,waiting};
+}
+function HalloweenCoinPanel({coins,draws,studentId,onAction}) {
+  const h=React.createElement,[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+  const {entries,total,spent,available,active,cost,ready,remaining,exchangeable,waiting}=studentCoinProgress(coins,draws,studentId);
   if(!active&&!entries.length)return null;
   async function exchange(){if(busy)return;setBusy(true);setMessage('');try{if(await onAction('exchange_coin',{expectedCost:cost,expectedSpent:spent}))setMessage('コイン1枚の交換を受け付けました。先生から受け取ってください。');}finally{setBusy(false);}}
   return h('section',{className:'gg-coin-panel gg-coin-exchange','aria-label':'お菓子ガチャコインの交換'},
@@ -1978,8 +1982,50 @@ function PhotoMissionPanel({admin=false,api,onSubmitted}) {
   );
 }
 
+function missionDeadlineLabel(deadline,today=new Date(Date.now()+9*3600000).toISOString().slice(0,10)) {
+  if(!deadline)return '';
+  const days=Math.round((Date.parse(deadline+'T00:00:00+09:00')-Date.parse(today+'T00:00:00+09:00'))/86400000);
+  return days===0?'今日まで':days===1?'明日まで':`期限：${deadline}`;
+}
+function orderStudentMissions(draws) {
+  return [...draws].sort((a,b)=>Number(b.status==='進行中')-Number(a.status==='進行中')||(a.deadline||'9999').localeCompare(b.deadline||'9999'));
+}
+function participationNextStep({coinProgress:coins,myActive,canPull,limitReached,isAnimating}) {
+  const active=orderStudentMissions(myActive).filter(d=>d.status==='進行中');
+  if(coins?.waiting>0)return {title:`コイン${coins.waiting}枚を先生から受け取ろう`,description:'受け取ったコインで、教室のお菓子ガチャに挑戦！',label:'受け取り待ちを確認',target:'gg-student-coins'};
+  if(coins?.active&&coins.ready)return {title:`コイン${coins.exchangeable}枚分のスタンプがたまった！`,description:'コイン交換のボタンから1枚ずつ申し込もう。',label:'コイン交換へ',target:'gg-student-coins'};
+  if(active.length)return {title:'まずはこのミッションに挑戦',description:active[0].missionText,label:'ミッションを確認',target:'gg-mission-'+active[0].id,deadline:missionDeadlineLabel(active[0].deadline)};
+  if(isAnimating)return {title:'ミッションを抽選中',description:'結果が出たら、内容と期限を確認しよう。'};
+  if(myActive.some(d=>d.status==='承認待ち'))return {title:'報告できたね！先生の確認を待とう',description:canPull?'確認が終わるとスタンプが増えるよ。次のミッションも引けます。':'確認が終わるとスタンプが増えるよ。授業のときに先生に伝えてね。',label:canPull?'次のミッション抽選へ':'報告したミッションを確認',target:canPull?'gg-mission-draw':'gg-student-missions'};
+  if(canPull)return {title:'ミッションを1つ引いてみよう',description:'内容を確認して、できることから始めよう。',label:'ミッション抽選へ',target:'gg-mission-draw'};
+  return {title:limitReached?'今日の抽選は完了！':'ミッションの準備中',description:limitReached?'新しいミッションは明日また引けるよ。':'先生に声をかけて、取り組めるミッションを確認しよう。'};
+}
+function StudentParticipationGuide(props) {
+  const h=React.createElement,step=participationNextStep(props),coins=props.coinProgress;
+  function goTo(id) {
+    const target=document.getElementById(id);
+    if(!target)return;
+    const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({behavior:reduced?'auto':'smooth',block:'center'});
+    target.focus({preventScroll:true});
+  }
+  return h('section',{className:'gg-participation','aria-label':'参加の案内'},
+    h('div',{className:'gg-next-step'},h('div',null,
+      h('span',{className:'gg-next-eyebrow'},'次の一歩'),
+      h('h3',null,step.title),h('p',null,step.description),
+      step.deadline&&h('span',{className:'gg-next-deadline'},step.deadline)),
+      step.target&&h('button',{type:'button',className:'gg-primary gg-next-button',onClick:()=>goTo(step.target)},step.label,' ›')),
+    coins?.active&&coins.cost>0&&h('div',{className:'gg-quick-progress'},
+      h('div',{className:'gg-quick-progress-copy'},h('strong',null,coins.ready?'コインに交換できます！':`あとスタンプ${coins.remaining}個でコイン1枚`),h('span',null,`使えるスタンプ ${coins.available}個`)),
+      h('div',{className:'gg-quick-progress-track',role:'progressbar','aria-label':'コイン1枚の交換まで','aria-valuemin':0,'aria-valuemax':coins.cost,'aria-valuenow':Math.min(coins.available,coins.cost)},h('span',{style:{width:Math.min(100,coins.available/coins.cost*100)+'%'}}))),
+    h('details',{className:'gg-participation-help'},h('summary',null,'はじめての人へ・参加方法'),
+      h('ol',null,h('li',null,h('strong',null,'ミッションを引く'),'：内容と期限を確認します。'),
+        h('li',null,h('strong',null,'取り組んで「達成を報告」'),'：先生の確認後にスタンプが増えます。'),
+        h('li',null,h('strong',null,coins?.active?'スタンプをコインに交換':'景品を確認'),coins?.active?'：先生からコインを受け取り、教室のお菓子ガチャを回そう。':'：景品タブで条件と申請方法を確認しよう。')),
+      h('p',null,'取り組み方が分からないときは、先生と一緒に確認しよう。')));
+}
 function StudentMissionView({
-  coinPanel,coinSpent=0,photoPanel,
+  coinPanel,coinSpent=0,coinProgress,photoPanel,
   rankPanel,
   studentName,
   missionsAvailable,
@@ -2005,9 +2051,12 @@ function StudentMissionView({
   const isAnimating = gachaPhase === "waiting" || gachaPhase === "shaking" || gachaPhase === "dropping" || gachaPhase === "cracking";
   const limitReached = dailyPullLimit > 0 && myTodayPullCount >= dailyPullLimit;
   const canPull = missionsAvailable > 0 && !isAnimating && !limitReached;
+  const orderedMissions=orderStudentMissions(myActive);
+  const ongoingCount=myActive.filter(d=>d.status==='進行中').length;
+  const pendingCount=myActive.filter(d=>d.status==='承認待ち').length;
   return /*#__PURE__*/React.createElement("div", {className:"gg-mission-page"}, /*#__PURE__*/React.createElement("h2", {
     style: styles.greeting
-  }, studentName, "\u3055\u3093\u3001\u3088\u3046\u3053\u305D"), /*#__PURE__*/React.createElement("div", {
+  }, studentName, "\u3055\u3093\u3001\u3088\u3046\u3053\u305D"), React.createElement(StudentParticipationGuide,{coinProgress,myActive,canPull,limitReached,isAnimating}), /*#__PURE__*/React.createElement("div", {
     className:"gg-gacha-scene gg-phase-"+gachaPhase,
     style: {
       ...styles.gachaBox,
@@ -2031,28 +2080,31 @@ function StudentMissionView({
     alt: "\u30AC\u30C1\u30E3\u53F0",
     style: styles.machineSvg
   }), React.createElement("span",{className:"gg-seasonal-machine",role:"img","aria-label":"かぼちゃのミッションガチャ"})), /*#__PURE__*/React.createElement("button", {
+    id:'gg-mission-draw',
     className:"gg-primary",
     style: styles.gachaBtn,
     onClick: pullGacha,
     disabled: !canPull
-  }, isAnimating ? (gachaPhase==='waiting'?"ガチャを準備中…":"ドキドキ…何が出るかな？") : React.createElement(React.Fragment,null,React.createElement("span",{className:"gg-default-pull-label"},"ガチャを引く"),React.createElement("span",{className:"gg-halloween-pull-label"},"ミッションを引く",React.createElement("span",{"aria-hidden":true}," ›")))), dailyPullLimit > 0 && /*#__PURE__*/React.createElement("div", {
+  }, isAnimating ? (gachaPhase==='waiting'?"ガチャを準備中…":"ドキドキ…何が出るかな？") : React.createElement(React.Fragment,null,React.createElement("span",{className:"gg-default-pull-label"},"ミッションを引く"),React.createElement("span",{className:"gg-halloween-pull-label"},"ミッションを引く",React.createElement("span",{"aria-hidden":true}," ›")))), dailyPullLimit > 0 && /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
-  }, "\u672C\u65E5\u306E\u30AC\u30C1\u30E3: ", Math.min(myTodayPullCount, dailyPullLimit), " / ", dailyPullLimit, "\u56DE"), missionsAvailable === 0 && /*#__PURE__*/React.createElement("div", {
+  }, '今日のミッション抽選：あと', Math.max(0,dailyPullLimit-myTodayPullCount), '回（1日', dailyPullLimit, '回まで）'), missionsAvailable === 0 && /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
   }, "\u4ECA\u306F\u3042\u306A\u305F\u304C\u5F15\u3051\u308B\u30DF\u30C3\u30B7\u30E7\u30F3\u304C\u3042\u308A\u307E\u305B\u3093"), missionsAvailable > 0 && limitReached && /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
   }, "\u672C\u65E5\u306E\u30AC\u30C1\u30E3\u4E0A\u9650\u306B\u9054\u3057\u307E\u3057\u305F\u3002\u307E\u305F\u660E\u65E5\u6311\u6226\u3057\u3066\u304F\u3060\u3055\u3044\u3002"), React.createElement(GachaReveal,{phase:gachaPhase,result:gachaResult,onSkip:skipGachaAnimation})), /*#__PURE__*/React.createElement("div", {
+    id:'gg-student-missions',tabIndex:-1,
     className:"gg-section-head",
     style: styles.sectionHead
   }, /*#__PURE__*/React.createElement("h3", {
     style: styles.sectionTitle
-  }, "\u9032\u884C\u4E2D\u306E\u30DF\u30C3\u30B7\u30E7\u30F3")), /*#__PURE__*/React.createElement("div", {
+  }, "\u9032\u884C\u4E2D\u306E\u30DF\u30C3\u30B7\u30E7\u30F3")), React.createElement('p',{className:'gg-mission-summary'},`取り組み中 ${ongoingCount}件 ・ 先生の確認待ち ${pendingCount}件`,pendingCount>0&&React.createElement('span',null,'報告済みのミッションは、先生の確認後にスタンプが増えます。')), /*#__PURE__*/React.createElement("div", {
     style: styles.missionList
   }, myActive.length === 0 && /*#__PURE__*/React.createElement("div", {
     className:"gg-empty-message",
     style: styles.emptyBox
-  }, "\u30AC\u30C1\u30E3\u3092\u5F15\u3044\u3066\u30DF\u30C3\u30B7\u30E7\u30F3\u3092\u624B\u306B\u5165\u308C\u3088\u3046"), myActive.map(d => /*#__PURE__*/React.createElement("div", {
+  }, canPull?'上の「ミッションを引く」から始めよう。':limitReached?'取り組み中のミッションはありません。明日また引いてみよう。':'先生に声をかけて、取り組めるミッションを確認しよう。'), orderedMissions.map(d => /*#__PURE__*/React.createElement("div", {
     key: d.id,
+    id:'gg-mission-'+d.id,tabIndex:-1,
     className:d.isTestMission ? "gg-mission-card gg-special-mission" : "gg-mission-card",
     style: styles.missionCard
   }, /*#__PURE__*/React.createElement("div", {
@@ -2071,14 +2123,14 @@ function StudentMissionView({
     style: styles.issuedTag
   }, "\u5148\u751F\u304B\u3089")), d.deadline && /*#__PURE__*/React.createElement("div", {
     style: isDrawOverdue(d) ? styles.overdueText : styles.deadlineText
-  }, isDrawOverdue(d) ? `期限切れ(${d.deadline}まで)` : `期限: ${d.deadline}`)), d.status === "進行中" ? /*#__PURE__*/React.createElement("button", {
+  }, isDrawOverdue(d) ? `期限切れ(${d.deadline}まで)` : missionDeadlineLabel(d.deadline))), d.status === "進行中" ? /*#__PURE__*/React.createElement("button", {
     className:"gg-primary",
     style: styles.reportBtn,
     onClick: () => reportDone(d.id)
   }, "\u9054\u6210\u3092\u5831\u544A") : /*#__PURE__*/React.createElement("span", {
     className:"gg-status-label",
     style: styles.pendingTag
-  }, "\u627F\u8A8D\u5F85\u3061")))), photoPanel,coinPanel,rankPanel, /*#__PURE__*/React.createElement("div", {
+  }, '先生の確認待ち')))), photoPanel,React.createElement('div',{id:'gg-student-coins',tabIndex:-1},coinPanel),rankPanel, /*#__PURE__*/React.createElement("div", {
     className:"gg-section-head",
     style: styles.sectionHead
   }, /*#__PURE__*/React.createElement("h3", {
@@ -3254,6 +3306,19 @@ function AdminView(props) {
   }, rankPrizes[String(i + 1)]))))));
 }
 const css = `
+  .gg-participation { margin:0 0 22px; border:1px solid #d6bddb; border-radius:18px; background:#fffaf3; color:#38233e; overflow:hidden; }
+  .gg-next-step { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:18px; padding:18px 20px; background:linear-gradient(115deg,#f4eafa,#fff5df); }
+  .gg-next-step>div { min-width:0; flex:1 1 240px; }.gg-next-eyebrow { color:#744286; font-size:12px; font-weight:800; letter-spacing:.08em; }
+  .gg-next-step h3 { margin:5px 0 6px; color:#38233e; font-size:20px; line-height:1.5; }.gg-next-step p { margin:0; font-size:14px; line-height:1.7; overflow-wrap:anywhere; }
+  .gg-next-deadline { display:inline-block; margin-top:8px; color:#8e331e; font-size:13px; font-weight:800; }
+  .gg-next-button { flex-shrink:0; padding:12px 18px; min-height:44px; border:0; border-radius:12px; background:#67338b; color:#fff; font-size:15px; font-weight:700; line-height:1.5; cursor:pointer; }
+  .gg-quick-progress { padding:14px 20px; border-top:1px solid #e8d9df; }.gg-quick-progress-copy { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 12px; font-size:14px; }.gg-quick-progress-copy>span { font-size:12px; color:#69566e; }
+  .gg-quick-progress-track { height:9px; margin-top:9px; border-radius:9px; background:#e7dce9; overflow:hidden; }.gg-quick-progress-track>span { display:block; height:100%; border-radius:inherit; background:#b6661b; }
+  .gg-participation-help { padding:0 20px 14px; font-size:13px; line-height:1.8; }.gg-participation-help summary { cursor:pointer; padding-top:10px; min-height:38px; color:#62416d; font-weight:700; }.gg-participation-help ol { padding-left:22px; margin:10px 0; }.gg-participation-help li { margin:6px 0; }.gg-participation-help p { margin:8px 0 0; }
+  .gg-mission-summary { margin:-4px 0 14px; font-size:13px; line-height:1.7; color:#65516e; }.gg-mission-summary span { display:block; }
+  .gg-participation :is(button,summary):focus-visible { outline:3px solid #8553b3; outline-offset:3px; }
+  #gg-student-coins,#gg-student-missions,.gg-mission-card { scroll-margin:24px; }
+  @media(max-width:600px) { .gg-next-step { flex-direction:column; align-items:stretch; gap:12px; padding:16px; }.gg-next-step>div { flex:auto; }.gg-next-step h3 { font-size:18px; }.gg-next-button { width:100%; }.gg-quick-progress { padding:12px 16px; }.gg-participation-help { padding:0 16px 12px; } }
   .halloween-theme .gg-brand-logo { mix-blend-mode:screen; }
   .halloween-theme { border-color:#40284c!important; min-height:100dvh!important; }
   .halloween-theme .gg-login-wrap { background:radial-gradient(ellipse at 18% 15%,#51345e 0,transparent 48%),radial-gradient(ellipse at 85% 90%,#48232d 0,transparent 45%),#191320!important; }
@@ -4339,4 +4404,3 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
 </script>
 </body>
 </html>
-
