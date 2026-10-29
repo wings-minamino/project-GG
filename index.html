@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-lh6awj7T6WPU729G8qkopiD/eNroDKPi3a+m8GyfABo='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-Z87pE2RRXwIk7ZJEkDiq7pdFAKfX3hDVge5Pe7YgKVQ='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ガチャミッション</title>
@@ -589,8 +589,12 @@ function describeCondition(hm) {
   if (hm.conditionType === "monthly_count") return `1か月に${hm.conditionValue}個のミッションをクリア`;
   return "";
 }
+function isRankingEligible(student) {
+  // Exclude the designated verification account by its stable ID, even after profile edits.
+  return student.id !== 'sirxz3gy';
+}
 function computeRanking(draws, students, month) {
-  return students.map(s => ({
+  return students.filter(isRankingEligible).map(s => ({
     ...s,
     count: stampsForStudentMonth(draws, s.id, month)
   })).sort((a, b) => b.count - a.count);
@@ -1682,14 +1686,16 @@ function RankSettingsPanel({rules,ranks,history,students,onAction}) {
 function StudentRankingView({rankPanel,draws,students,currentStudentId,month,isMobile}) {
   const list=useMemo(()=>studentMonthlyRanking(draws,students,month),[draws,students,month]);
   const me=list.find(s=>s.id===currentStudentId);
+  const rankingExcluded=!isRankingEligible({id:currentStudentId});
+  const myCount=stampsForStudentMonth(draws,currentStudentId,month);
   const maxCount=Math.max(1,...list.map(s=>s.count));
   const card={background:'#fff',border:'1px solid #eadfd8',borderRadius:18,padding:isMobile?20:28};
   return React.createElement('section',{className:'gg-ranking-page'},rankPanel,
     React.createElement('div',{className:'gg-my-rank',style:{...card,background:'#fff3ee',borderColor:'#edc7b9',marginBottom:24}},
       React.createElement('div',{style:{fontSize:14,color:'#76584b'}},formatMonth(month)+' · 自分の現在の順位'),
       React.createElement('div',{style:{display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginTop:12}},
-        React.createElement('div',null,React.createElement('strong',{style:{fontSize:isMobile?48:64,color:'#a52b2b',lineHeight:1.2}},me?.rank?me.rank+'位':'—'),React.createElement('span',{style:{marginLeft:12,fontSize:14,color:'#76584b'}},me?.rank?'／ '+list.length+'人':'スタンプ獲得で順位がつきます')),
-        React.createElement('div',null,React.createElement('strong',{style:{fontSize:isMobile?32:42}},me?.count||0),React.createElement('span',{style:{marginLeft:8}},'スタンプ')))),
+        React.createElement('div',null,React.createElement('strong',{style:{fontSize:rankingExcluded?24:isMobile?48:64,color:'#a52b2b',lineHeight:1.2}},rankingExcluded?'順位対象外':me?.rank?me.rank+'位':'—'),React.createElement('span',{style:{marginLeft:12,fontSize:14,color:'#76584b'}},rankingExcluded?'確認用アカウント':me?.rank?'／ '+list.length+'人':'スタンプ獲得で順位がつきます')),
+        React.createElement('div',null,React.createElement('strong',{style:{fontSize:isMobile?32:42}},myCount),React.createElement('span',{style:{marginLeft:8}},'スタンプ')))),
     React.createElement('div',{className:'gg-ranking-card',style:card},
       React.createElement('h3',{style:{margin:'0 0 8px'}},'今月のランキング'),
       React.createElement('p',{style:{fontSize:13,color:'#666',margin:'0 0 20px'}},'今月承認されたスタンプの合計です。同じ数は同じ順位になります。'),

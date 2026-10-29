@@ -142,8 +142,12 @@ function describeCondition(hm) {
   if (hm.conditionType === "monthly_count") return `1か月に${hm.conditionValue}個のミッションをクリア`;
   return "";
 }
+function isRankingEligible(student) {
+  // Exclude the designated verification account by its stable ID, even after profile edits.
+  return student.id !== 'sirxz3gy';
+}
 function computeRanking(draws, students, month) {
-  return students.map(s => ({
+  return students.filter(isRankingEligible).map(s => ({
     ...s,
     count: stampsForStudentMonth(draws, s.id, month)
   })).sort((a, b) => b.count - a.count);
