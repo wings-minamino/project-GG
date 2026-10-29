@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-mFGJVr82fLFv+/ckUchiXnIowCHqjcoAVAlq0LAjEBE='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-vdqcopNTzO3NHQouNxqg5E/ymwKpdsLAYA8nM1NU6Qw='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プロジェクトGG 講師用</title>
@@ -1417,7 +1417,7 @@ function GachaMissionApp() {
       ...styles.main,
       padding: isMobile ? "14px 14px" : "22px 26px"
     }
-  }, role === "student" ? /*#__PURE__*/React.createElement("div", {className:"gg-student-content"}, isHalloweenSeason(suggestionNow)&&React.createElement(HalloweenBanner), /*#__PURE__*/React.createElement("div", {
+  }, role === "student" ? /*#__PURE__*/React.createElement("div", {className:"gg-student-content"}, isHalloweenSeason(suggestionNow)&&React.createElement(HalloweenBanner), React.createElement(CoinCommunityGoal,{coins:halloweenCoins,studentId:currentStudentId}), /*#__PURE__*/React.createElement("div", {
     className:"gg-student-tabs",
     style: styles.studentTabs
   }, /*#__PURE__*/React.createElement("button", {
@@ -1870,6 +1870,22 @@ function studentCoinProgress(coins,draws,studentId) {
   const exchangeable=cost?Math.floor(available/cost):0,waiting=entries.filter(e=>!e.deliveredAt).length;
   return {entries,total,spent,available,active,cost,ready,remaining,exchangeable,waiting};
 }
+function CoinCommunityGoal({coins,studentId,admin=false}) {
+  const h=React.createElement,goal=coins.communityGoal;
+  if(!goal||!Number.isInteger(goal.count)||goal.count<0||!Number.isInteger(goal.target)||goal.target<1)return null;
+  const {count,target}=goal,reached=count>=target,remaining=Math.max(0,target-count);
+  const eligible=isRankingEligible({id:studentId});
+  const contributed=eligible&&(coins.entries||[]).some(e=>e.studentId===studentId&&(e.source==='exchange'||e.source==='gacha'));
+  return h('section',{className:'gg-community-goal'+(reached?' gg-community-complete':''),'aria-label':'みんなでお菓子の種類を増やそう'},
+    h('div',{className:'gg-community-heading'},h('div',null,
+      h('span',{className:'gg-community-eyebrow'},reached?'みんなの目標 達成！':'みんなでチャレンジ'),
+      h('h3',null,reached?'お菓子の種類追加が決定！':`${target}人がコインを獲得したら、お菓子の種類が増える！`)),
+      h('span',{className:'gg-community-icon','aria-hidden':true},reached?'🎉':'🍬')),
+    h('div',{className:'gg-community-numbers'},h('span',null,'1コイン以上獲得 ',h('strong',null,count),` / ${target}人`),h('strong',null,reached?'目標達成！':`あと${remaining}人`)),
+    h('div',{className:'gg-community-track',role:'progressbar','aria-label':'1コイン以上獲得した人数','aria-valuemin':0,'aria-valuemax':target,'aria-valuenow':Math.min(count,target),'aria-valuetext':`${count}人が獲得、目標${target}人`},h('span',{style:{width:Math.min(100,count/target*100)+'%'}})),
+    h('p',{className:'gg-community-message'},reached?(admin?'目標達成！お菓子の種類を追加し、生徒にお知らせしてください。':'追加するお菓子と開始日は、先生からのお知らせを待ってね。'):admin?'25人に達したら、お菓子の種類を追加する目標です。':!eligible?'確認用アカウントは人数に含まれません。':contributed?'あなたの1コインも、みんなの目標にカウント済み！':'最初の1コインで、みんなの目標に参加しよう。'),
+    h('p',{className:'gg-community-note'},'スタンプ交換・ガチャ当選のどちらでもOK。1人1カウント。',admin?'確認用アカウントは除外し、受け取り待ちも含みます。':''));
+}
 function HalloweenCoinPanel({coins,draws,studentId,onAction}) {
   const h=React.createElement,[busy,setBusy]=useState(false),[message,setMessage]=useState('');
   const {entries,total,spent,available,active,cost,ready,remaining,exchangeable,waiting}=studentCoinProgress(coins,draws,studentId);
@@ -1901,9 +1917,9 @@ function HalloweenCoinAdmin({coins,students,onAction,distribution=false}) {
   useEffect(()=>setCost(coins.stampCost??''),[coins.stampCost]);
   async function save(e){e.preventDefault();if(busy)return;setBusy(true);setMessage('');try{if(await onAction('set_coin_cost',{stampCost:Number(cost),expectedCost:coins.stampCost}))setMessage('交換条件を保存しました。');}finally{setBusy(false);}}
   async function deliver(id){if(busy)return;setBusy(true);try{await onAction('deliver_coin',{id});}finally{setBusy(false);}}
-  if(distribution)return h('section',{className:'gg-coin-panel'},h('h3',null,'10月のお菓子ガチャコイン受け渡し'),
+  if(distribution)return h('section',{className:'gg-coin-panel'},h(CoinCommunityGoal,{coins,admin:true}),h('h3',null,'10月のお菓子ガチャコイン受け渡し'),
     !(coins.entries||[]).length?h('p',null,'交換・当選はまだありません。'):h('ul',{className:'gg-coin-deliveries'},...[...(coins.entries||[])].sort((a,b)=>Number(!!a.deliveredAt)-Number(!!b.deliveredAt)||a.createdAt.localeCompare(b.createdAt)).map(e=>h('li',{key:e.id},h('span',null,`${students.find(s=>s.id===e.studentId)?.name||'登録のない生徒'} · 1枚 · ${e.source==='gacha'?'ガチャ当選':`スタンプ${e.stampCost}個で交換`}`),h('button',{disabled:busy||!!e.deliveredAt,onClick:()=>deliver(e.id)},e.deliveredAt?'渡し済み ✓':'コイン1枚を渡した')))));
-  return h('section',{className:'gg-coin-panel'},h('h3',null,'10月限定：お菓子ガチャコイン'),
+  return h('section',{className:'gg-coin-panel'},h(CoinCommunityGoal,{coins,admin:true}),h('h3',null,'10月限定：お菓子ガチャコイン'),
     h('p',null,'10月の通常スタンプ景品はコイン交換に切り替わります。ランキング景品は従来どおりです。'),
     h('form',{onSubmit:save},h('label',null,'コイン1枚に必要なスタンプ数 ',h('input',{type:'number',min:1,max:10000,step:1,required:true,value:cost,onChange:e=>setCost(e.target.value),style:{width:90,padding:8}})),h('button',{type:'submit',disabled:busy||currentMonthKey()!=='2026-10'},'保存')),
     h('p',null,'未設定の間は交換できません。変更後の条件は次の交換から適用され、使用済みスタンプ数は変更しません。交換は10月31日23:59までです。'),
@@ -3312,6 +3328,13 @@ function AdminView(props) {
   }, rankPrizes[String(i + 1)]))))));
 }
 const css = `
+  .gg-community-goal { margin:0 0 20px; padding:20px; border:1px solid #e8bf78; border-radius:18px; background:linear-gradient(120deg,#fff7df,#fff1e9); color:#492c23; }
+  .gg-community-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }.gg-community-heading>div { min-width:0; }.gg-community-eyebrow { color:#8a4b13; font-size:12px; font-weight:800; letter-spacing:.06em; }.gg-community-goal h3 { margin:6px 0 14px; color:#492c23; font-size:19px; line-height:1.6; }.gg-community-icon { flex-shrink:0; font-size:32px; }
+  .gg-community-numbers { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:6px 16px; font-size:14px; }.gg-community-numbers span strong { font-size:28px; color:#713212; }.gg-community-numbers>strong { color:#713212; font-size:16px; }
+  .gg-community-track { height:12px; margin:10px 0 12px; background:#ead7be; border-radius:12px; overflow:hidden; }.gg-community-track>span { display:block; height:100%; border-radius:inherit; background:#b95a1a; }
+  .gg-community-message { margin:0 0 6px; font-size:14px; line-height:1.7; font-weight:700; }.gg-community-note { margin:0; font-size:12px; line-height:1.7; color:#6f5548; }
+  .gg-community-complete { background:linear-gradient(120deg,#f0f9e6,#fff5d4); border-color:#a6bd79; }.gg-community-complete .gg-community-track>span { background:#487b35; }
+  @media(max-width:600px) { .gg-community-goal { padding:16px; }.gg-community-goal h3 { font-size:17px; }.gg-community-icon { display:none; } }
   .gg-participation { margin:0 0 22px; border:1px solid #d6bddb; border-radius:18px; background:#fffaf3; color:#38233e; overflow:hidden; }
   .gg-next-step { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:18px; padding:18px 20px; background:linear-gradient(115deg,#f4eafa,#fff5df); }
   .gg-next-step>div { min-width:0; flex:1 1 240px; }.gg-next-eyebrow { color:#744286; font-size:12px; font-weight:800; letter-spacing:.08em; }

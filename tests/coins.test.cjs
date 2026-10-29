@@ -56,6 +56,8 @@ async function call(body,token){if(body.action==='login'&&body.number!==undefine
  assert.equal((await call({...exchange,requestId:'three',expectedSpent:10},student)).status,403);
  assert.equal(row.data.draws[0].value,12);
  const privateView=await call({action:'get'},other);assert.equal(privateView.data.halloweenCoins.entries.length,0);assert.equal(privateView.data.halloweenCoins.loginDays,undefined);
+ assert.equal(privateView.data.halloweenCoins.communityGoal.count,1,'two exchanged coins count as one person, visible to other students');
+ assert.equal((await call({action:'get'},admin)).data.halloweenCoins.communityGoal.count,1);
  const entryId=row.data.halloweenCoins.entries[0].id;
  assert.equal((await call({action:'deliver_coin',requestId:'bad-deliver',id:entryId},student)).status,403);
  assert.equal((await call({action:'deliver_coin',requestId:'deliver',id:entryId},admin)).status,200);

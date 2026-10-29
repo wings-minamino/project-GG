@@ -1,5 +1,5 @@
 import {photoAction} from './photos.js';
-import {COIN_MONTH,coinSeason,coinState,coinSummary,recordCoinVisit,coinChance} from './coins.js';
+import {COIN_MONTH,coinSeason,coinState,coinCommunityGoal,coinSummary,recordCoinVisit,coinChance} from './coins.js';
 import {settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
 
 // Bearer-token authentication, no ambient cookies: also supports VS Code Live Server.
@@ -90,7 +90,8 @@ function derived(data) {
 }
 function view(row,session) {
   if(!row.data) return {version:row.version,data:null};
-  if(session.role==='admin') return {version:row.version,data:row.data};
+  const communityGoal=coinCommunityGoal(row.data);
+  if(session.role==='admin') return {version:row.version,data:{...row.data,halloweenCoins:{...coinState(row.data),communityGoal}}};
   const allowed=['halloweenCoins','missions','draws','students','rankPrizes','rankPrizeMonth','rankPrizeHistory','rankRules','rankMonth','studentRanks','rankHistory','milestonePrizes','deliveries','prizeClaims','hiddenMissions','testMissions','achievements','prizeSuggestions','missionSuggestions','lastPromotionYear','dailyPullLimit'];
   const d=structuredClone(Object.fromEntries(allowed.filter(k=>Object.hasOwn(row.data,k)).map(k=>[k,row.data[k]]))),id=session.student_id;
   d.missionSuggestions=(d.missionSuggestions||[]).filter(x=>x.studentId===id);
@@ -105,7 +106,7 @@ function view(row,session) {
   d.studentRanks={[id]:d.studentRanks?.[id]||0};
   d.rankHistory=Object.fromEntries(Object.entries(d.rankHistory||{}).map(([month,h])=>[month,{...h,results:h.results?.[id]?{[id]:h.results[id]}:{}}]));
   d.rankPrizeHistory=Object.fromEntries(Object.entries(d.rankPrizeHistory||{}).map(([month,h])=>[month,{prizes:h.prizes,finalizedAt:h.finalizedAt,earned:(h.earned||[]).filter(e=>e.studentId===id)}]));
-  d.halloweenCoins={stampCost:coinState(row.data).stampCost,entries:coinState(row.data).entries.filter(e=>e.studentId===id)};
+  d.halloweenCoins={stampCost:coinState(row.data).stampCost,entries:coinState(row.data).entries.filter(e=>e.studentId===id),communityGoal};
   d.hiddenMissions=[]; d.testMissions=[];
   return {version:row.version,data:d};
 }
