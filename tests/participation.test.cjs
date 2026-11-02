@@ -1,11 +1,12 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
-let month='2026-10',focused=null,scrolled=null;
-const ctx=vm.createContext({Date,currentMonthKey:()=>month,monthKey:s=>s.slice(0,7),
+let date='2026-10-29',month='2026-10',focused=null,scrolled=null;
+const ctx=vm.createContext({Date,todayStr:()=>date,currentMonthKey:()=>month,monthKey:s=>s.slice(0,7),
   document:{getElementById:id=>({scrollIntoView:options=>scrolled={id,...options},focus:()=>focused=id})},
   window:{matchMedia:()=>({matches:true})},React:{createElement:(tag,props,...children)=>({tag,props:props||{},children})}});
 function include(start,end){vm.runInContext(html.slice(html.indexOf(start),html.indexOf(end)),ctx);}
 include('function stampsForStudentMonth(','function daysBetween(');
+include('// Preserve October balances','function computeEarnedPrizes(');
 include('function studentCoinProgress(','function HalloweenCoinPanel(');
 include('function missionDeadlineLabel(','function StudentMissionView(');
 const draws=[{studentId:'me',status:'承認済み',approvedAt:'2026-10-29',value:8},
@@ -51,7 +52,9 @@ assert.equal(nodes(tree).find(n=>n.props.role==='progressbar').props['aria-value
 assert.equal(nodes(tree).filter(n=>n.tag==='li').length,3);
 const unset=ctx.studentCoinProgress({stampCost:null,entries:[]},draws,'me');
 assert.equal(nodes(ctx.StudentParticipationGuide({...base,coinProgress:unset})).filter(n=>n.props.role==='progressbar').length,0);
-month='2026-11';
+month='2026-11';date='2026-11-25';
+assert.equal(ctx.studentCoinProgress({stampCost:5,entries:[]},draws,'me').active,true);
+date='2026-11-26';
 const closed=ctx.studentCoinProgress({stampCost:5,entries:[]},draws,'me');
 assert.equal(closed.active,false);
 assert.equal(ctx.participationNextStep({...base,coinProgress:closed}).target,'gg-mission-draw');
@@ -61,3 +64,4 @@ assert.ok(JSON.stringify(closedTree).includes('景品を確認'));
 const waitingAfterClose=ctx.studentCoinProgress({stampCost:5,entries:[{studentId:'me',source:'gacha'}]},draws,'me');
 assert.equal(ctx.participationNextStep({...base,coinProgress:waitingAfterClose}).target,'gg-student-coins');
 console.log('PASS: participation guidance, personal approved balances, pending/delivered coins, missing rates, expired exchange period, mission priority, deadlines, no source mutation, navigation and reduced motion');
+

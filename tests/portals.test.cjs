@@ -8,7 +8,7 @@ for(const [file,isAdmin] of [['index.html',false],['admin/index.html',true]]){
  const policy=html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)[1];
  for(const [,s] of html.matchAll(/<script>([\s\S]*?)<\/script>/g))assert.ok(policy.includes(crypto.createHash('sha256').update(s).digest('base64')));
  const ctx=vm.createContext({IS_ADMIN_PORTAL:isAdmin,React:{createElement:(tag,props,...children)=>({tag,props:props||{},children})},styles:{},LOGO_DATA_URI:''});
- vm.runInContext(html.slice(html.indexOf('function LoginScreen('),html.indexOf('function StudentMissionView(')),ctx);
+ vm.runInContext(html.slice(html.indexOf('function NovemberHero('),html.indexOf('function StudentMissionView(')),ctx);
  const tree=vm.runInContext('LoginScreen({loginNumber:"",showAdminLogin:false,isMobile:false})',ctx);
  const nodes=[];function visit(n){if(!n||typeof n!=='object')return;nodes.push(n);n.children.flat().forEach(visit);}visit(tree);
  assert.equal(nodes.filter(n=>n.tag==='button').length,1);
@@ -26,3 +26,14 @@ for(const [date,admin,expected] of [
  assert.equal(vm.runInContext(`isHalloweenSeason(${Date.parse(date)},${admin})`,seasonal),expected);
 }
 console.log('PASS: Halloween limited to October 2026 JST and excluded from teacher portal');
+for(const [date,admin,expected] of [
+ ['2026-10-31T23:59:59.999+09:00',false,false],['2026-11-01T00:00:00+09:00',false,true],
+ ['2026-11-30T23:59:59.999+09:00',false,true],['2026-12-01T00:00:00+09:00',false,false],
+ ['2026-11-15T12:00:00+09:00',true,false],['2027-11-01T00:00:00+09:00',false,false]]){
+ assert.equal(vm.runInContext(`isNovemberSeason(${Date.parse(date)},${admin})`,seasonal),expected);
+}
+assert.equal(vm.runInContext(`studentSeasonTheme(${Date.parse('2026-10-31T23:59:59+09:00')},false)`,seasonal),'halloween-theme');
+assert.equal(vm.runInContext(`studentSeasonTheme(${Date.parse('2026-11-01T00:00:00+09:00')},false)`,seasonal),'november-theme');
+assert.equal(vm.runInContext(`studentSeasonTheme(${Date.parse('2026-12-01T00:00:00+09:00')},false)`,seasonal),undefined);
+console.log('PASS: November design active only November 1–30, 2026 JST; no overlap or teacher theme');
+

@@ -7,9 +7,11 @@ for(const file of ['index.html','admin/index.html']){
  const React={Fragment:'fragment',createElement:(tag,props,...children)=>typeof tag==='function'?tag({...props,children}):({tag,props:props||{},children})};
  const reports=[];
  const ctx=vm.createContext({React,useState:v=>[typeof v==='function'?v():v,()=>{}],useMemo:f=>f(),useRef:v=>({current:v}),useEffect:()=>{},
-  IS_ADMIN_PORTAL:file.startsWith('admin/'),MACHINE_IMAGE_DATA_URI:'',GRADE_GROUPS:{},GRADE_LEVELS:[],
+  todayStr:()=> '2026-10-29',IS_ADMIN_PORTAL:file.startsWith('admin/'),MACHINE_IMAGE_DATA_URI:'',GRADE_GROUPS:{},GRADE_LEVELS:[],
   isDrawOverdue:()=>false,shiftMonth:()=>'',formatMonth:v=>v,canCancelIssuedMission:d=>d.status==='進行中',Date,console});
  function include(start,end){vm.runInContext(source.slice(source.indexOf(start),source.indexOf(end)),ctx);}
+ include('// Preserve October balances','function computeEarnedPrizes(');
+ include('function NovemberHero(','function LoginScreen(');
  include('function GachaReveal(','async function prepareMissionPhoto(');
  include('function PhotoMissionPanel(','function AchievementPopup(');
  include('function IssuedMissionHistory(','function parseStudentCSV(');
@@ -57,3 +59,4 @@ for(const file of ['index.html','admin/index.html']){
  }
  console.log('PASS:',file,'legacy mission flags, normal/special distinction, photo label, reporting, pending state, teacher management/approval/history/selector');
 }
+

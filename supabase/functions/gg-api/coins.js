@@ -1,6 +1,4 @@
-import {todayStr,addDays,isRankingEligible} from './helpers.js';
-const COIN_MONTH='2026-10';
-function coinSeason(date=todayStr()){return date.slice(0,7)===COIN_MONTH;}
+import {todayStr,addDays,isRankingEligible,coinSeason,coinStampTotal} from './helpers.js';
 function coinState(data){return data.halloweenCoins||{stampCost:null,entries:[],loginDays:{}};}
 function coinCommunityGoal(data){
   // Only share an aggregate; individual coin histories remain private.
@@ -10,7 +8,7 @@ function coinCommunityGoal(data){
 }
 function coinSummary(data,id){
   const c=coinState(data),entries=c.entries.filter(e=>e.studentId===id);
-  const total=data.draws.filter(d=>d.studentId===id&&d.status==='承認済み'&&d.approvedAt?.slice(0,7)===COIN_MONTH).reduce((n,d)=>n+(d.value||1),0);
+  const total=coinStampTotal(data.draws,id);
   const spent=entries.filter(e=>e.source==='exchange').reduce((n,e)=>n+e.stampCost,0);
   return {total,spent,available:Math.max(0,total-spent),entries};
 }
@@ -27,4 +25,5 @@ function coinChance(data,id,date=todayStr()){
   const days=visit?.date===date?visit.streak:1;
   return Math.min(.05,.01+Math.max(0,days-1)*.005);
 }
-export {COIN_MONTH,coinSeason,coinState,coinCommunityGoal,coinSummary,recordCoinVisit,coinChance};
+export {coinSeason,coinState,coinCommunityGoal,coinSummary,recordCoinVisit,coinChance};
+

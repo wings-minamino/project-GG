@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-y/zC60GxuMqb4dhSo5+Ii/RbdQJ3TPlp1i6WSk8UJ8A='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-QO9QNSGRwPwLL2LZy2/kiquk/Zv2wvh8H2Paxwt/Oh4='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プロジェクトGG 講師用</title>
@@ -337,6 +337,12 @@ const PORTAL_ROLE = IS_ADMIN_PORTAL ? "admin" : "student";
 function isHalloweenSeason(now=Date.now(),admin=IS_ADMIN_PORTAL) {
   return !admin && now>=Date.parse('2026-10-01T00:00:00+09:00') && now<Date.parse('2026-11-01T00:00:00+09:00');
 }
+function isNovemberSeason(now=Date.now(),admin=IS_ADMIN_PORTAL) {
+  return !admin && now>=Date.parse('2026-11-01T00:00:00+09:00') && now<Date.parse('2026-12-01T00:00:00+09:00');
+}
+function studentSeasonTheme(now=Date.now(),admin=IS_ADMIN_PORTAL) {
+  return isHalloweenSeason(now,admin)?'halloween-theme':isNovemberSeason(now,admin)?'november-theme':undefined;
+}
 function HalloweenBanner({compact=false}) {
   const h=React.createElement;
   return h('div',{className:'halloween-banner'+(compact?' halloween-compact':'')},
@@ -599,6 +605,26 @@ function computeRanking(draws, students, month) {
     count: stampsForStudentMonth(draws, s.id, month)
   })).sort((a, b) => b.count - a.count);
 }
+// Preserve October balances while extending the existing coin campaign through November 25 (JST).
+const COIN_START='2026-10-01',COIN_END='2026-11-25';
+function coinSeason(date=todayStr()){return date>=COIN_START&&date<=COIN_END;}
+function isCoinStampDate(date){return typeof date==='string'&&coinSeason(date.slice(0,10));}
+function coinStampTotal(draws,studentId){
+  return draws.filter(d=>d.studentId===studentId&&d.status==='承認済み'&&isCoinStampDate(d.approvedAt)).reduce((n,d)=>n+(d.value||1),0);
+}
+function coinMilestonesPaused(month,date=todayStr()){
+  return month==='2026-10'||(month==='2026-11'&&date<=COIN_END);
+}
+function milestoneStampsForStudentMonth(draws,studentId,month){
+  return stampsForStudentMonth(draws.filter(d=>!isCoinStampDate(d.approvedAt)),studentId,month);
+}
+function coinSpentForMonth(draws,coins,studentId,month){
+  const eligible=draws.filter(d=>d.studentId===studentId&&d.status==='承認済み'&&isCoinStampDate(d.approvedAt));
+  const before=eligible.filter(d=>monthKey(d.approvedAt)<month).reduce((n,d)=>n+(d.value||1),0);
+  const current=eligible.filter(d=>monthKey(d.approvedAt)===month).reduce((n,d)=>n+(d.value||1),0);
+  const spent=(coins.entries||[]).filter(e=>e.studentId===studentId&&e.source==='exchange').reduce((n,e)=>n+e.stampCost,0);
+  return Math.min(current,Math.max(0,spent-before));
+}
 function computeEarnedPrizes(draws, students, rankPrizes, milestonePrizes, month) {
   const ranking = computeRanking(draws, students, month);
   const earned = [];
@@ -614,7 +640,7 @@ function computeEarnedPrizes(draws, students, rankPrizes, milestonePrizes, month
     }
   });
   students.forEach(s => {
-    const count = stampsForStudentMonth(draws, s.id, month);
+    const count = milestoneStampsForStudentMonth(draws, s.id, month);
     milestonePrizes.forEach(mp => {
       if (count >= mp.threshold) {
         earned.push({
@@ -723,6 +749,14 @@ function GachaMissionApp() {
       document.removeEventListener("visibilitychange", refreshSuggestionTime);
     };
   }, []);
+
+  // Update the seasonal design at midnight JST even while the app stays open.
+  useEffect(() => {
+    const day=24*60*60*1000;
+    const delay=day-((suggestionNow+9*60*60*1000)%day);
+    const timer=window.setTimeout(()=>setSuggestionNow(Date.now()),delay);
+    return ()=>window.clearTimeout(timer);
+  },[suggestionNow]);
 
   const [convertState, setConvertState] = useState(null); // { id, mode: 'stamp' | 'rank' }
   const [convertValue, setConvertValue] = useState("");
@@ -1288,6 +1322,7 @@ function GachaMissionApp() {
   const myTodayPullCount = useMemo(() => draws.filter(d => d.studentId === currentStudentId && d.drawnAt === todayStr() && !d.issuedByAdmin && !d.hidden).length, [draws, currentStudentId]);
   const myActive = myDraws.filter(d => !d.coinReward && d.status !== "承認済み" && !isDrawOverdue(d));
   const myStampsThisMonth = useMemo(() => currentStudentId ? stampsForStudentMonth(draws, currentStudentId, studentMonth) : 0, [draws, currentStudentId, studentMonth]);
+  const myMilestoneStampsThisMonth = useMemo(() => currentStudentId ? milestoneStampsForStudentMonth(draws,currentStudentId,studentMonth) : 0,[draws,currentStudentId,studentMonth]);
   const pendingApprovals = useMemo(() => draws.filter(d => d.status === "承認待ち").sort((a, b) => a.drawnAt.localeCompare(b.drawnAt)), [draws]);
   const ranking = useMemo(() => computeRanking(draws, students, rankMonth), [draws, students, rankMonth]);
   const filteredSortedStudents = useMemo(() => {
@@ -1307,7 +1342,7 @@ function GachaMissionApp() {
   }, [students, studentSearchQuery, studentSortBy, gradeFilter, schoolFilter]);
   const schoolOptions = useMemo(() => Array.from(new Set(students.map(s => s.school).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ja")), [students]);
   function earnedForMonth(month) {
-    const earned=[...computeEarnedPrizes(draws,students,{},month==='2026-10'?[]:milestonePrizes,month),
+    const earned=[...computeEarnedPrizes(draws,students,{},coinMilestonesPaused(month)?[]:milestonePrizes,month),
       ...(month<currentMonthKey()?(rankPrizeHistory[month]?.earned||[]):[])];
     // Keep pre-migration deliveries visible without inventing historical prize names.
     for(const [key,received] of Object.entries(deliveries)) {
@@ -1343,7 +1378,7 @@ function GachaMissionApp() {
     return [...map.values()];
   },[draws,students,rankPrizeHistory,milestonePrizes,studentMonth,currentStudentId,prizeClaims,deliveries,suggestionNow]);
   const coinPanel=React.createElement(HalloweenCoinPanel,{coins:halloweenCoins,draws,studentId:currentStudentId,onAction:studentAction});
-  const coinSpent=studentMonth==='2026-10'?(halloweenCoins.entries||[]).filter(e=>e.studentId===currentStudentId&&e.source==='exchange').reduce((n,e)=>n+e.stampCost,0):0;
+  const coinSpent=coinSpentForMonth(draws,halloweenCoins,currentStudentId,studentMonth);
   const studentRankPanel=React.createElement(StudentRankCard,{rules:rankRules,level:studentRanks[currentStudentId]||0,count:stampsForStudentMonth(draws,currentStudentId,currentMonthKey()),history:rankHistory,studentId:currentStudentId});
   const myUnseenAchievement = useMemo(() => currentStudentId ? achievements.find(a => a.studentId === currentStudentId && !a.seen) : null, [achievements, currentStudentId]);
   const myAchievements = useMemo(() => currentStudentId ? achievements.filter(a => a.studentId === currentStudentId).sort((a, b) => b.achievedAt.localeCompare(a.achievedAt)) : [], [achievements, currentStudentId]);
@@ -1355,7 +1390,7 @@ function GachaMissionApp() {
       restoreError && React.createElement('button',{onClick:restoreSession,style:{display:'block',margin:'20px auto'}},'再試行')));
   if (role === null) {
     return /*#__PURE__*/React.createElement("div", {
-      className: isHalloweenSeason(suggestionNow) ? 'halloween-theme' : undefined,
+      className: studentSeasonTheme(suggestionNow),
     style: styles.app
     }, /*#__PURE__*/React.createElement("style", null, css), /*#__PURE__*/React.createElement(LoginScreen, {
       loginNumber: loginNumber,
@@ -1381,7 +1416,7 @@ function GachaMissionApp() {
     React.createElement('p',{role:'status'},syncMessage),
     React.createElement('button',{disabled:syncBusy,onClick:handleLogout},'ログアウト'));
   return /*#__PURE__*/React.createElement("div", {
-    className: isHalloweenSeason(suggestionNow) ? 'halloween-theme' : undefined,
+    className: studentSeasonTheme(suggestionNow),
     style: styles.app
   }, /*#__PURE__*/React.createElement("style", null, css), role === "student" && myUnseenAchievement && /*#__PURE__*/React.createElement(AchievementPopup, {
     achievement: myUnseenAchievement,
@@ -1402,7 +1437,7 @@ function GachaMissionApp() {
       ...styles.brandLogo,
       height: isMobile ? 20 : 26
     }
-  })), /*#__PURE__*/React.createElement("div", {
+  }), React.createElement("span",{className:"gg-november-brand"},"プロジェクトGG",React.createElement("small",null,"11月"))), /*#__PURE__*/React.createElement("div", {
     style: styles.userBox
   }, role === "student" ? /*#__PURE__*/React.createElement("span", {
     style: styles.userTag
@@ -1429,7 +1464,7 @@ function GachaMissionApp() {
     style: studentTab === "prize" ? styles.subTabActive : styles.subTab,
     onClick: () => setStudentTab("prize")
   }, "\u666F\u54C1"), React.createElement('button',{className:studentTab==='ranking'?'gg-tab-active':'gg-tab-inactive',style:studentTab==='ranking'?styles.subTabActive:styles.subTab,onClick:()=>setStudentTab('ranking')},'ランキング')), studentTab==='ranking' ? React.createElement(StudentRankingView,{rankPanel:studentRankPanel,draws,students,currentStudentId,month:monthKey(new Date(suggestionNow+9*3600000).toISOString()),isMobile}) : studentTab === "mission" ? React.createElement('div',null, /*#__PURE__*/React.createElement(StudentMissionView, {
-    rankPanel:studentRankPanel,coinPanel,coinSpent,coinProgress:studentCoinProgress(halloweenCoins,draws,currentStudentId),photoPanel:React.createElement(PhotoMissionPanel,{api,onSubmitted:async()=>applyCloud(await api({action:"get"}))}),
+    rankPanel:studentRankPanel,coinPanel,coinSpent,coinProgress:studentCoinProgress(halloweenCoins,draws,currentStudentId),photoPanel:suggestionNow<Date.parse('2026-11-01T00:00:00+09:00')?React.createElement(PhotoMissionPanel,{api,onSubmitted:async()=>applyCloud(await api({action:"get"}))}):null,
     studentName: studentName(currentStudentId),
     missionsAvailable: myEligibleMissionCount,
     dailyPullLimit: dailyPullLimit,
@@ -1443,6 +1478,7 @@ function GachaMissionApp() {
     studentMonth: studentMonth,
     setStudentMonth: setStudentMonth,
     myStampsThisMonth: myStampsThisMonth,
+    myMilestoneStampsThisMonth,
     milestonePrizes: milestonePrizes,
     myAchievements: myAchievements,
     isMobile: isMobile
@@ -1451,6 +1487,7 @@ function GachaMissionApp() {
     studentMonth: studentMonth,
     setStudentMonth: setStudentMonth,
     myStampsThisMonth: myStampsThisMonth,
+    myMilestoneStampsThisMonth,
     milestonePrizes: milestonePrizes,
     rankPrizes: studentMonth===rankPrizeMonth&&studentMonth===currentMonthKey()?rankPrizes:(rankPrizeHistory[studentMonth]?.prizes||{}),
     myEarnedThisMonth: myEarnedThisMonth,
@@ -1779,6 +1816,12 @@ function SecuritySettings({onChange}) {
       React.createElement('button',{type:'submit',disabled:busy,style:{marginTop:12}},busy?'変更中…':'パスワードを変更'),
       message&&React.createElement('p',{role:'status'},message)));
 }
+function NovemberHero() {
+  const h=React.createElement;
+  return h('div',{className:'gg-november-hero'},
+    h('h3',null,h('span',null,'がんばりが実る、'),h('span',null,'11月。')),
+    h('p',null,'毎日の一歩を、力にしよう。'));
+}
 function LoginScreen({
   seasonal=false,
   loginNumber,
@@ -1823,7 +1866,7 @@ function LoginScreen({
       width: isMobile ? 200 : 420,
       maxWidth: "100%"
     }
-  })), seasonal&&React.createElement(HalloweenBanner,{compact:true}), !IS_ADMIN_PORTAL ? /*#__PURE__*/React.createElement("div", { style: { maxWidth: isMobile ? "100%" : 340, margin: "0 auto" } }, /*#__PURE__*/React.createElement("div", {
+  }), React.createElement("span",{className:"gg-november-brand"},"プロジェクトGG",React.createElement("small",null,"11月"))), seasonal&&React.createElement(HalloweenBanner,{compact:true}), React.createElement(NovemberHero), !IS_ADMIN_PORTAL ? /*#__PURE__*/React.createElement("div", { style: { maxWidth: isMobile ? "100%" : 340, margin: "0 auto" } }, /*#__PURE__*/React.createElement("div", {
     style: { ...styles.loginLabel, fontSize: isMobile ? 14 : 14, marginBottom: isMobile ? 10 : 10 }
   }, "\u751F\u5F92\u756A\u53F7\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044"), /*#__PURE__*/React.createElement("input", {
     style: { ...styles.loginInput, boxSizing: "border-box", fontSize: isMobile ? 16 : 16, padding: isMobile ? "12px" : "10px 14px", marginBottom: isMobile ? 12 : 12 },
@@ -1863,9 +1906,9 @@ function LoginScreen({
 }
 function studentCoinProgress(coins,draws,studentId) {
   const entries=(coins.entries||[]).filter(e=>e.studentId===studentId);
-  const total=stampsForStudentMonth(draws,studentId,'2026-10');
+  const total=coinStampTotal(draws,studentId);
   const spent=entries.filter(e=>e.source==='exchange').reduce((n,e)=>n+e.stampCost,0),available=Math.max(0,total-spent);
-  const active=currentMonthKey()==='2026-10',cost=coins.stampCost;
+  const active=coinSeason(),cost=coins.stampCost;
   const ready=!!cost&&available>=cost,remaining=cost?Math.max(0,cost-available):0;
   const exchangeable=cost?Math.floor(available/cost):0,waiting=entries.filter(e=>!e.deliveredAt).length;
   return {entries,total,spent,available,active,cost,ready,remaining,exchangeable,waiting};
@@ -1892,23 +1935,25 @@ function HalloweenCoinPanel({coins,draws,studentId,onAction}) {
   if(!active&&!entries.length)return null;
   async function exchange(){if(busy)return;setBusy(true);setMessage('');try{if(await onAction('exchange_coin',{expectedCost:cost,expectedSpent:spent}))setMessage('コイン1枚の交換を受け付けました。先生から受け取ってください。');}finally{setBusy(false);}}
   return h('section',{className:'gg-coin-panel gg-coin-exchange','aria-label':'お菓子ガチャコインの交換'},
-    h('div',{className:'gg-coin-heading'},h('div',null,h('span',{className:'gg-coin-season'},'10月限定'),h('h3',null,'お菓子ガチャコインに交換')),h('span',{className:'gg-coin-token','aria-hidden':true},'★')),
+    h('div',{className:'gg-coin-heading'},h('div',null,h('span',{className:'gg-coin-season'},'11月25日まで'),h('h3',null,'お菓子ガチャコインに交換')),h('span',{className:'gg-coin-token','aria-hidden':true},'★')),
     active?h(React.Fragment,null,
-      h('div',{className:'gg-coin-rate'},h('div',null,h('span',{'aria-hidden':true},'🎃 '),'スタンプ ',h('strong',null,cost||'？'),' 個'),h('span',{className:'gg-coin-arrow','aria-hidden':true},'→'),h('div',null,h('span',{className:'gg-coin-mini','aria-hidden':true},'★'),' コイン ',h('strong',null,'1'),' 枚')),
+      h('div',{className:'gg-coin-rate'},h('div',null,h('span',{className:'gg-coin-rate-stamp','aria-hidden':true},'🎃 '),'スタンプ ',h('strong',null,cost||'？'),' 個'),h('span',{className:'gg-coin-arrow','aria-hidden':true},'→'),h('div',null,h('span',{className:'gg-coin-mini','aria-hidden':true},'★'),' コイン ',h('strong',null,'1'),' 枚')),
       h('div',{className:'gg-coin-progress-card'},
         h('div',{className:'gg-coin-balance'},h('span',null,'交換に使えるスタンプ'),h('span',null,h('strong',null,available),' 個')),
         cost?h(React.Fragment,null,
+          cost<=10&&h('div',{className:'gg-november-progress','aria-hidden':true},...Array.from({length:cost},(_,i)=>h('span',{key:i,className:i<available?'':'gg-acorn-unearned'}))),
           h('div',{className:'gg-coin-progress',role:'progressbar','aria-label':'コイン1枚の交換まで','aria-valuemin':0,'aria-valuemax':cost,'aria-valuenow':Math.min(available,cost)},h('span',{style:{width:Math.min(100,available/cost*100)+'%'}})),
           h('p',{className:'gg-coin-goal'},ready?h(React.Fragment,null,'交換できるコインは ',h('strong',null,exchangeable),' 枚！'):h(React.Fragment,null,'あと ',h('strong',null,remaining),' 個でコイン1枚！')),
           h('p',{className:'gg-coin-help'},ready?'下のボタンで1枚ずつ交換しよう':'ミッションを達成してスタンプを集めよう')):
           h('p',{className:'gg-coin-goal'},'先生が交換条件を準備中')),
       h('button',{className:'gg-primary gg-coin-exchange-button',disabled:busy||!ready,onClick:exchange},busy?'交換中…':!cost?'交換の準備中':!ready?`あと${remaining}個で交換できるよ`:'★ コイン1枚に交換する',cost&&h('small',null,`スタンプ${cost}個を使います`))):
-      h('p',{className:'gg-coin-goal'},'10月のコイン交換は終了しました'),
+      h('p',{className:'gg-coin-goal'},'コイン交換の受付は終了しました'),
     message&&h('p',{role:'status',className:'gg-coin-success'},'✓ '+message),
     h('div',{className:'gg-coin-wallet'},h('div',null,h('span',null,'獲得したコイン'),h('strong',null,entries.length,h('small',null,' 枚'))),h('div',{className:waiting?'gg-coin-waiting':''},h('span',null,'先生から受け取り待ち'),h('strong',null,waiting,h('small',null,' 枚')))),
     waiting>0&&h('p',{className:'gg-coin-pickup'},'🎁 先生に声をかけてコインを受け取ろう！'),
+    h('p',{className:'gg-coin-note'},'10月の未使用スタンプも引き継ぎます。11月25日23:59まで交換できます。'),
     h('p',{className:'gg-coin-note'},'交換してもランキング・ランク判定用の累計は減りません。'),
-    h('details',{className:'gg-coin-history'},h('summary',null,'スタンプの内訳・コインの履歴'),
+    h('details',{className:'gg-coin-history'},h('summary',null,'対象期間のスタンプ・コイン履歴'),
       h('p',null,`累計 ${total}個 ／ 交換に使用済み ${spent}個 ／ 使える ${available}個`),
       entries.length?h('ul',null,...[...entries].reverse().map(e=>h('li',{key:e.id},`${new Date(e.createdAt).toLocaleDateString('ja-JP',{timeZone:'Asia/Tokyo'})} · ${e.source==='gacha'?'ガチャ当選':`スタンプ${e.stampCost}個を使用`} · コイン1枚 · ${e.deliveredAt?'受け取り済み':'先生から受け取り待ち'}`))):h('p',null,'コインの獲得はまだありません。')));
 }
@@ -1917,12 +1962,12 @@ function HalloweenCoinAdmin({coins,students,onAction,distribution=false}) {
   useEffect(()=>setCost(coins.stampCost??''),[coins.stampCost]);
   async function save(e){e.preventDefault();if(busy)return;setBusy(true);setMessage('');try{if(await onAction('set_coin_cost',{stampCost:Number(cost),expectedCost:coins.stampCost}))setMessage('交換条件を保存しました。');}finally{setBusy(false);}}
   async function deliver(id){if(busy)return;setBusy(true);try{await onAction('deliver_coin',{id});}finally{setBusy(false);}}
-  if(distribution)return h('section',{className:'gg-coin-panel'},h(CoinCommunityGoal,{coins,admin:true}),h('h3',null,'10月のお菓子ガチャコイン受け渡し'),
+  if(distribution)return h('section',{className:'gg-coin-panel'},h(CoinCommunityGoal,{coins,admin:true}),h('h3',null,'お菓子ガチャコイン受け渡し'),
     !(coins.entries||[]).length?h('p',null,'交換・当選はまだありません。'):h('ul',{className:'gg-coin-deliveries'},...[...(coins.entries||[])].sort((a,b)=>Number(!!a.deliveredAt)-Number(!!b.deliveredAt)||a.createdAt.localeCompare(b.createdAt)).map(e=>h('li',{key:e.id},h('span',null,`${students.find(s=>s.id===e.studentId)?.name||'登録のない生徒'} · 1枚 · ${e.source==='gacha'?'ガチャ当選':`スタンプ${e.stampCost}個で交換`}`),h('button',{disabled:busy||!!e.deliveredAt,onClick:()=>deliver(e.id)},e.deliveredAt?'渡し済み ✓':'コイン1枚を渡した')))));
-  return h('section',{className:'gg-coin-panel'},h(CoinCommunityGoal,{coins,admin:true}),h('h3',null,'10月限定：お菓子ガチャコイン'),
-    h('p',null,'10月の通常スタンプ景品はコイン交換に切り替わります。ランキング景品は従来どおりです。'),
-    h('form',{onSubmit:save},h('label',null,'コイン1枚に必要なスタンプ数 ',h('input',{type:'number',min:1,max:10000,step:1,required:true,value:cost,onChange:e=>setCost(e.target.value),style:{width:90,padding:8}})),h('button',{type:'submit',disabled:busy||currentMonthKey()!=='2026-10'},'保存')),
-    h('p',null,'未設定の間は交換できません。変更後の条件は次の交換から適用され、使用済みスタンプ数は変更しません。交換は10月31日23:59までです。'),
+  return h('section',{className:'gg-coin-panel'},h(CoinCommunityGoal,{coins,admin:true}),h('h3',null,'11月25日まで：お菓子ガチャコイン'),
+    h('p',null,'11月25日まで通常スタンプ景品はコイン交換です。10月の未使用分も引き継ぎます。ランキング景品は従来どおりです。'),
+    h('form',{onSubmit:save},h('label',null,'コイン1枚に必要なスタンプ数 ',h('input',{type:'number',min:1,max:10000,step:1,required:true,value:cost,onChange:e=>setCost(e.target.value),style:{width:90,padding:8}})),h('button',{type:'submit',disabled:busy||!coinSeason()},'保存')),
+    h('p',null,'未設定の間は交換できません。変更後の条件は次の交換から適用され、使用済みスタンプ数は変更しません。交換は11月25日23:59までです（日本時間）。'),
     h('p',null,'ガチャ当選：基本1％。連続ログイン1日ごとに＋0.5ポイント、最大5％。日本時間で判定し、途切れると1％に戻ります。確率は生徒には非表示です。当選も1日のガチャ回数に含まれます。'),
     message&&h('p',{role:'status'},message));
 }
@@ -2060,6 +2105,7 @@ function StudentMissionView({
   studentMonth,
   setStudentMonth,
   myStampsThisMonth,
+  myMilestoneStampsThisMonth,
   milestonePrizes,
   myAchievements,
   isMobile,
@@ -2068,8 +2114,8 @@ function StudentMissionView({
 }) {
   const stampCols = 5;
   const stampSlots = Math.max(stampCols * 2, Math.ceil(myStampsThisMonth / stampCols) * stampCols);
-  const sortedMilestones = useMemo(() => studentMonth==='2026-10'?[]:[...milestonePrizes].sort((a, b) => a.threshold - b.threshold), [milestonePrizes,studentMonth]);
-  const nextMilestone = sortedMilestones.find(mp => mp.threshold > myStampsThisMonth);
+  const sortedMilestones = useMemo(() => coinMilestonesPaused(studentMonth)?[]:[...milestonePrizes].sort((a, b) => a.threshold - b.threshold), [milestonePrizes,studentMonth,todayStr()]);
+  const nextMilestone = sortedMilestones.find(mp => mp.threshold > myMilestoneStampsThisMonth);
   const isAnimating = gachaPhase === "waiting" || gachaPhase === "shaking" || gachaPhase === "dropping" || gachaPhase === "cracking";
   const limitReached = dailyPullLimit > 0 && myTodayPullCount >= dailyPullLimit;
   const canPull = missionsAvailable > 0 && !isAnimating && !limitReached;
@@ -2078,13 +2124,13 @@ function StudentMissionView({
   const pendingCount=myActive.filter(d=>d.status==='承認待ち').length;
   return /*#__PURE__*/React.createElement("div", {className:"gg-mission-page"}, /*#__PURE__*/React.createElement("h2", {
     style: styles.greeting
-  }, studentName, "\u3055\u3093\u3001\u3088\u3046\u3053\u305D"), React.createElement(StudentParticipationGuide,{coinProgress,myActive,canPull,limitReached,isAnimating}), /*#__PURE__*/React.createElement("div", {
+  }, studentName, "\u3055\u3093\u3001\u3088\u3046\u3053\u305D"), /*#__PURE__*/React.createElement("div", {
     className:"gg-gacha-scene gg-phase-"+gachaPhase,
     style: {
       ...styles.gachaBox,
       padding: isMobile ? "18px 14px" : "26px 20px"
     }
-  }, React.createElement("div",{className:"gg-gacha-festive","aria-hidden":true},
+  }, React.createElement(NovemberHero), React.createElement("div",{className:"gg-gacha-festive","aria-hidden":true},
     React.createElement("span",{className:"gg-gacha-horizon"}), React.createElement("span",{className:"gg-gacha-ground"}),
     ...Array.from({length:8},(_,i)=>React.createElement("span",{key:i,className:"gg-gacha-spark gg-gacha-spark-"+i},i%3===0?"✦":"✧"))),
     React.createElement("div",{className:"gg-gacha-sign","aria-hidden":true},... ["TRICK","STUDY","GROW"].map(t=>React.createElement("span",{key:t},t))),
@@ -2113,7 +2159,7 @@ function StudentMissionView({
     style: styles.hintText
   }, "\u4ECA\u306F\u3042\u306A\u305F\u304C\u5F15\u3051\u308B\u30DF\u30C3\u30B7\u30E7\u30F3\u304C\u3042\u308A\u307E\u305B\u3093"), missionsAvailable > 0 && limitReached && /*#__PURE__*/React.createElement("div", {
     style: styles.hintText
-  }, "\u672C\u65E5\u306E\u30AC\u30C1\u30E3\u4E0A\u9650\u306B\u9054\u3057\u307E\u3057\u305F\u3002\u307E\u305F\u660E\u65E5\u6311\u6226\u3057\u3066\u304F\u3060\u3055\u3044\u3002"), React.createElement(GachaReveal,{phase:gachaPhase,result:gachaResult,onSkip:skipGachaAnimation})), /*#__PURE__*/React.createElement("div", {
+  }, "\u672C\u65E5\u306E\u30AC\u30C1\u30E3\u4E0A\u9650\u306B\u9054\u3057\u307E\u3057\u305F\u3002\u307E\u305F\u660E\u65E5\u6311\u6226\u3057\u3066\u304F\u3060\u3055\u3044\u3002"), React.createElement(GachaReveal,{phase:gachaPhase,result:gachaResult,onSkip:skipGachaAnimation})), React.createElement(StudentParticipationGuide,{coinProgress,myActive,canPull,limitReached,isAnimating}), /*#__PURE__*/React.createElement("div", {
     id:'gg-student-missions',tabIndex:-1,
     className:"gg-section-head",
     style: styles.sectionHead
@@ -2184,9 +2230,9 @@ function StudentMissionView({
     key: i,
     className:(i < myStampsThisMonth ? "gg-stamp-filled" : "gg-stamp-empty")+(i<coinSpent?" gg-stamp-spent":""),
     style: i < myStampsThisMonth ? styles.stampFilled : styles.stampEmpty
-  }, React.createElement("span",{className:"gg-original-stamp"},i < myStampsThisMonth ? "★" : ""),React.createElement("span",{className:"gg-pumpkin-stamp",role:"img","aria-label":i<coinSpent?"交換に使用済み":i < myStampsThisMonth ? "未使用の獲得済みスタンプ" : "未獲得"})))), nextMilestone ? /*#__PURE__*/React.createElement("div", {
+  }, React.createElement("span",{className:"gg-original-stamp"},i < myStampsThisMonth ? "★" : ""),React.createElement("span",{className:"gg-pumpkin-stamp",role:"img","aria-label":i<coinSpent?"交換に使用済み":i < myStampsThisMonth ? "未使用の獲得済みスタンプ" : "未獲得"}),React.createElement("span",{className:"gg-acorn-stamp",role:"img","aria-label":i<coinSpent?"交換に使用済み":i < myStampsThisMonth ? "未使用の獲得済みスタンプ" : "未獲得"})))), nextMilestone ? /*#__PURE__*/React.createElement("div", {
     style: styles.nextPrizeNote
-  }, "\u3042\u3068", /*#__PURE__*/React.createElement("strong", null, nextMilestone.threshold - myStampsThisMonth), "\u500B\u3067\u300C", nextMilestone.name, "\u300D\u304C\u3082\u3089\u3048\u307E\u3059!") : sortedMilestones.length > 0 ? /*#__PURE__*/React.createElement("div", {
+  }, "\u3042\u3068", /*#__PURE__*/React.createElement("strong", null, nextMilestone.threshold - myMilestoneStampsThisMonth), "\u500B\u3067\u300C", nextMilestone.name, "\u300D\u304C\u3082\u3089\u3048\u307E\u3059!") : sortedMilestones.length > 0 ? /*#__PURE__*/React.createElement("div", {
     style: styles.nextPrizeNoteDone
   }, "\u4ECA\u6708\u306E\u30B9\u30BF\u30F3\u30D7\u666F\u54C1\u306F\u3059\u3079\u3066\u9054\u6210\u3057\u307E\u3057\u305F!") : null), myAchievements.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className:"gg-section-head",
@@ -2238,6 +2284,7 @@ function StudentPrizeView({
   studentMonth,
   setStudentMonth,
   myStampsThisMonth,
+  myMilestoneStampsThisMonth,
   milestonePrizes,
   rankPrizes,
   myEarnedThisMonth,
@@ -2251,7 +2298,7 @@ function StudentPrizeView({
   mySuggestions,
   isMobile
 }) {
-  const sortedMilestones = useMemo(() => studentMonth==='2026-10'?[]:[...milestonePrizes].sort((a, b) => a.threshold - b.threshold), [milestonePrizes,studentMonth]);
+  const sortedMilestones = useMemo(() => coinMilestonesPaused(studentMonth)?[]:[...milestonePrizes].sort((a, b) => a.threshold - b.threshold), [milestonePrizes,studentMonth,todayStr()]);
   return React.createElement("div", {className:"gg-prize-page"}, coinPanel,React.createElement("h2",{className:"gg-prize-title"},"スタンプを集めて景品を申請"),
     React.createElement('p',{style:{fontSize:13,lineHeight:1.7}},'ランキング景品は前月分を今月の画面から申請できます（例：9月分は10月に表示）。スタンプ景品は翌月10日まで申請でき、11日から未申請の景品は表示されません。申請済みの景品は残ります。'),
     React.createElement('button',{style:{...styles.navBtn,width:'auto',height:'auto',padding:'8px 14px',borderRadius:8,whiteSpace:'nowrap',writingMode:'horizontal-tb',lineHeight:1.5},onClick:()=>setStudentMonth(currentMonthKey())},'今月の申請欄を表示'), /*#__PURE__*/React.createElement("div", {
@@ -2299,8 +2346,8 @@ function StudentPrizeView({
   }, sortedMilestones.length === 0 && /*#__PURE__*/React.createElement("div", {
     className:"gg-empty-message",
     style: styles.emptyBox
-  }, studentMonth==='2026-10'?"10月は上のお菓子ガチャコイン欄から交換できます。":"スタンプ景品は登録されていません"), sortedMilestones.map(mp => {
-    const achieved = myStampsThisMonth >= mp.threshold;
+  }, coinMilestonesPaused(studentMonth)?"対象期間は上のお菓子ガチャコイン欄から交換できます（11月25日まで）。":"スタンプ景品は登録されていません"), sortedMilestones.map(mp => {
+    const achieved = myMilestoneStampsThisMonth >= mp.threshold;
     return /*#__PURE__*/React.createElement("div", {
       key: mp.id,
       className:"gg-prize-card",
@@ -2310,7 +2357,7 @@ function StudentPrizeView({
     style: styles.missionText
     }, mp.threshold, "\u500B: ", mp.name), /*#__PURE__*/React.createElement("span", {
       style: achieved ? styles.approvedTag : styles.pendingTag
-    }, achieved ? "達成済み" : `あと${mp.threshold - myStampsThisMonth}個`));
+    }, achieved ? "達成済み" : `あと${mp.threshold - myMilestoneStampsThisMonth}個`));
   })), /*#__PURE__*/React.createElement("div", {
     className:"gg-section-head",
     style: styles.sectionHead
@@ -3684,6 +3731,114 @@ const css = `
   @keyframes shake { 0%, 100% { transform: translateX(0) rotate(0deg); } 20% { transform: translateX(-5px) rotate(-4deg); } 40% { transform: translateX(5px) rotate(4deg); } 60% { transform: translateX(-4px) rotate(-3deg); } 80% { transform: translateX(4px) rotate(3deg); } }
   @keyframes dropBounce { 0% { transform: translateY(-46px) scale(0.8); opacity: 0; } 55% { transform: translateY(6px) scale(1.05); opacity: 1; } 75% { transform: translateY(-4px) scale(0.98); } 100% { transform: translateY(0) scale(1); } }
   @keyframes crackOpen { 0% { transform: scale(1) rotate(0deg); opacity: 1; } 60% { transform: scale(1.25) rotate(10deg); opacity: 1; } 100% { transform: scale(1.4) rotate(16deg); opacity: 0; } }
+  .gg-november-brand,.gg-november-hero,.gg-acorn-stamp,.gg-november-progress { display:none; }
+  .november-theme { background:#f9f3e7!important; color:#3d392a!important; border-color:#eadcc3!important; min-height:100dvh!important; }
+  .november-theme * { font-family:'Noto Sans JP','Hiragino Sans','Yu Gothic',sans-serif!important; }
+  .november-theme .gg-main { background:radial-gradient(ellipse at top left,#f5d28e32,transparent 42%),#faf6ed!important; max-width:850px; margin:0 auto; }
+  .november-theme .gg-topbar { background:#fffaf0!important; border-color:#e5d5b6!important; flex-wrap:wrap; gap:12px; }
+  .november-theme .gg-topbar>div:last-child span { color:#62533c!important; }
+  .november-theme .gg-topbar button { color:#655537!important; border-color:#cebb95!important; background:#fffdf7!important; min-height:36px; }
+  .november-theme .gg-brand-logo { display:none!important; }
+  .november-theme .gg-november-brand { display:inline-flex; align-items:center; gap:8px; color:#3f492c; font-weight:900; font-size:clamp(17px,4.8vw,24px); letter-spacing:-.03em; white-space:nowrap; }
+  .november-theme .gg-november-brand::before { content:''; display:block; width:26px; height:29px; background:url('../assets/november/leaf.svg') center/contain no-repeat; transform:rotate(-18deg); }
+  .november-theme .gg-november-brand small { color:#704c26; font-size:12px; border:1px solid #c7a574; background:linear-gradient(100deg,#ead0a6,#f9e8cb,#dec297); padding:4px 9px; border-radius:5px; box-shadow:0 2px 2px #5d3c1812; letter-spacing:0; }
+  .november-theme .gg-participation { border-color:#dfd0af; background:#fffdf5; }
+  .november-theme .gg-next-step { background:linear-gradient(115deg,#f0f2e4,#fff6df); }
+  .november-theme :is(.gg-next-eyebrow,.gg-next-step h3,.gg-quick-progress-copy strong) { color:#3c5b35; }
+  .november-theme .gg-quick-progress-track>span { background:#547446; }
+  .november-theme .gg-participation-help { color:#6c5c42; }
+  .november-theme .gg-mission-card.gg-special-mission { border:2px solid #b58b3c!important; background:#fff9e7!important; }
+  .november-theme .gg-student-tabs { display:flex; gap:5px!important; background:#eee5d2; border:1px solid #ded1b5!important; border-radius:16px!important; padding:5px; margin-bottom:20px!important; }
+  .november-theme .gg-student-tabs button { flex:1; min-width:0; padding:12px 5px!important; font-size:14px!important; border:0!important; border-radius:11px!important; white-space:nowrap; }
+  .november-theme .gg-tab-active { background:#315a3b!important; color:#fffdf4!important; box-shadow:0 2px 3px #203c2229; }
+  .november-theme .gg-tab-inactive { background:transparent!important; color:#665b41!important; }
+  .november-theme .gg-mission-page>h2 { font-size:14px!important; color:#72624a!important; margin:0 0 12px!important; }
+  .november-theme .gg-gacha-scene { position:relative; background:#fff8e9!important; border:1px solid #ddc8a3!important; padding:0 0 22px!important; border-radius:23px!important; overflow:hidden; box-shadow:0 5px 18px #7450200d; }
+  .november-theme .gg-gacha-scene :is(.gg-machine-wrap,.gg-gacha-title,.gg-gacha-invitation,.gg-gacha-festive,.gg-gacha-sign,.gg-gacha-spark) { display:none!important; }
+  .november-theme .gg-november-hero { display:block; position:relative; aspect-ratio:3/2; background:url('../assets/november/hero.webp') center/cover no-repeat; text-align:left; }
+  .november-theme .gg-november-hero h3 { position:absolute; left:7%; top:19%; width:48%; margin:0; font-size:clamp(23px,5.6vw,42px); font-weight:900; color:#3c4e2d; line-height:1.65; letter-spacing:.015em; text-shadow:0 2px 8px #fffbec; }
+  .november-theme .gg-november-hero h3 span { display:block; white-space:nowrap; }
+  .november-theme .gg-november-hero p { position:absolute; left:7%; top:56%; margin:0; font-size:clamp(11px,2.8vw,18px); font-weight:700; line-height:1.7; color:#6b5234; text-shadow:0 1px 5px #fff7df; }
+  .november-theme .gg-primary { background:#315b3b!important; color:#fffdf5!important; border-color:#315b3b!important; }
+  .november-theme .gg-primary:disabled { background:#e0e4d8!important; color:#63694f!important; box-shadow:none!important; opacity:1; }
+  .november-theme .gg-gacha-scene>.gg-primary { position:relative; display:block; width:76%; max-width:400px; min-height:52px; margin:-12px auto 10px; padding:14px 12px!important; border-radius:14px!important; font-size:19px!important; font-weight:800; box-shadow:0 4px 0 #23442c,0 7px 14px #315b3b25; }
+  .november-theme .gg-gacha-scene>div:not([class]) { padding:0 16px; color:#75674d!important; }
+  .november-theme .gg-section-head { margin-top:28px!important; margin-bottom:13px!important; gap:10px; flex-wrap:wrap; }
+  .november-theme .gg-section-head h3 { color:#4e4f31!important; font-size:18px!important; display:flex; align-items:center; gap:8px; }
+  .november-theme .gg-section-head h3::before { content:''; display:inline-block; width:24px; height:26px; background:url('../assets/november/leaf.svg') center/contain no-repeat; }
+  .november-theme :is(.gg-mission-card,.gg-prize-card,.gg-stamp-box,.gg-ranking-card,.gg-my-rank) { background:#fffdf7!important; border:1px solid #e5d7bb!important; border-radius:18px!important; box-shadow:0 4px 12px #7d572a09; }
+  .november-theme :is(.gg-mission-card,.gg-prize-card) { padding:18px!important; gap:12px!important; flex-wrap:wrap; }
+  .november-theme .gg-readable-copy { color:#453e2e!important; font-size:15px!important; line-height:1.75; overflow-wrap:anywhere; min-width:0; }
+  .november-theme .gg-mission-card>div:has(>.gg-readable-copy) { min-width:0; flex-basis:180px!important; }
+  .november-theme .gg-mission-card>.gg-primary { background:#b7622d!important; border-radius:10px!important; padding:11px 14px!important; font-weight:700; min-height:42px; white-space:nowrap; }
+  .november-theme .gg-status-label { background:#f6eacb!important; color:#7a5d23!important; }
+  .november-theme .gg-empty-message { background:#fffdf5!important; color:#75684e!important; border-color:#ded2b8!important; }
+  .november-theme .gg-coin-panel.gg-coin-exchange { background:linear-gradient(145deg,#fff6dc,#f9edcc); border:1px solid #d9b567; padding:22px; box-shadow:0 5px 15px #7750190d; }
+  .november-theme .gg-coin-heading { margin-bottom:16px; }
+  .november-theme .gg-coin-panel.gg-coin-exchange h3 { color:#564b2d; font-size:20px; }
+  .november-theme .gg-coin-season { background:#e9d3a2; color:#6b4d21; }
+  .november-theme .gg-coin-rate { background:#fff9eb; border:1px solid #ead6a7; color:#69502c; }
+  .november-theme .gg-coin-rate-stamp { font-size:0; width:27px; height:32px; display:inline-block; background:url('../assets/november/acorn.svg') center/contain no-repeat; vertical-align:middle; }
+  .november-theme .gg-coin-progress-card { background:#fffdf6; border-color:#e5d2a8; }
+  .november-theme :is(.gg-coin-balance strong,.gg-coin-exchange .gg-coin-goal) { color:#37583a; }
+  .november-theme .gg-coin-progress { background:#e9e7d6; height:13px; }
+  .november-theme .gg-coin-progress>span { background:linear-gradient(90deg,#708d46,#365a38); }
+  .november-theme .gg-november-progress { display:flex; justify-content:center; flex-wrap:wrap; gap:7px; margin:16px 0 8px; }
+  .november-theme .gg-november-progress span { width:30px; height:36px; background:url('../assets/november/acorn.svg') center/contain no-repeat; }
+  .november-theme .gg-november-progress .gg-acorn-unearned { opacity:.22; filter:grayscale(.8); }
+  .november-theme .gg-coin-exchange .gg-coin-exchange-button { border-radius:12px; box-shadow:0 4px 0 #24462c; }
+  .november-theme :is(.gg-coin-exchange .gg-coin-help,.gg-coin-exchange .gg-coin-note) { color:#75664d; }
+  .november-theme .gg-coin-wallet>div { background:#fffaf0; color:#624d2c; }
+  .november-theme .gg-coin-wallet .gg-coin-waiting { background:#f6e5b8; }
+  .november-theme .gg-coin-exchange .gg-coin-pickup { font-size:13px; }
+  .november-theme :is(.gg-original-stamp,.gg-pumpkin-stamp) { display:none; }
+  .november-theme .gg-acorn-stamp { display:block; width:75%; height:80%; background:url('../assets/november/acorn.svg') center/contain no-repeat; }
+  .november-theme :is(.gg-stamp-filled,.gg-stamp-empty) { display:flex; align-items:center; justify-content:center; border:1px solid #d6bf91!important; background:#fbf1db!important; border-radius:14px!important; }
+  .november-theme .gg-stamp-empty { border-style:dashed!important; background:#faf7ef!important; }
+  .november-theme .gg-stamp-empty .gg-acorn-stamp { opacity:.2; filter:grayscale(1); }
+  .november-theme .gg-stamp-spent .gg-acorn-stamp { opacity:.35; filter:grayscale(1); }
+  .november-theme .gg-stamp-spent::after { background:#796746; border-radius:0 0 12px 12px; }
+  .november-theme .gg-stamp-box>div:first-child { color:#725a2c!important; }
+  .november-theme .gg-month-label { color:#655637!important; }
+  .november-theme .gg-month-nav button { background:#f9edcf!important; color:#685333!important; border-color:#d8c49f!important; min-width:36px; min-height:36px; }
+  .november-theme .gg-prize-title { display:block; font-size:21px; color:#4d4d2e; }
+  .november-theme .gg-prize-card>.gg-readable-copy { flex:1 1 180px!important; }
+  .november-theme .gg-prize-card>span { white-space:normal!important; color:#735327!important; }
+  .november-theme .gg-ranking-row { background:#fffaf0!important; border-color:#e7dac0!important; }
+  .november-theme .gg-ranking-self { background:#edf1df!important; border-color:#94a36a!important; }
+  .november-theme .gg-ranking-bar { background:#bf984b!important; }
+  .november-theme .gg-ranking-own-bar { background:#547446!important; }
+  .november-theme :is(.gg-rank-summary,.gg-proposal-panel) { background:#fffaf0; color:#5f553e!important; border:1px solid #e4d6ba; border-radius:14px; padding:16px; line-height:1.75; }
+  .november-theme .gg-proposal-panel input { background:#fffdf7!important; border-color:#cbbd9b!important; color:#4b4535!important; }
+  .november-theme .gg-proposal-panel button { padding:10px 14px; border:1px solid #cbbd9b; border-radius:10px; background:#fff9eb; color:#4c5233; }
+  .november-theme .gg-reveal { margin:20px 14px 0; border-color:#b7a263; background:radial-gradient(ellipse at top,#678453,#203c2c); }
+  .november-theme .gg-reveal-skip { background:#294932; border-color:#c3cca2; }
+  .november-theme .gg-reveal-coin { background:radial-gradient(ellipse at top,#a57a2d,#3b4b29 85%); border-color:#e6bc60; }
+  .november-theme .gg-capsule-bottom { background:linear-gradient(140deg,#dbc784,#5b793e); }
+  .november-theme .gg-login-wrap { background:radial-gradient(ellipse at top,#f0d6a6,#faf6ed 70%)!important; }
+  .november-theme .gg-login-card { background:#fffcf5!important; border:1px solid #dac6a3!important; box-shadow:0 15px 50px #86622c18; }
+  .november-theme .gg-login-card .gg-november-brand { font-size:clamp(22px,5.8vw,32px); }
+  .november-theme .gg-login-card .gg-november-hero { margin:0 -5px 24px; border-radius:14px; overflow:hidden; }
+  .november-theme .gg-login-card .gg-november-hero h3 { font-size:clamp(20px,4.8vw,29px); }
+  .november-theme .gg-login-card .gg-november-hero p { font-size:clamp(10px,2.3vw,13px); }
+  .november-theme .gg-login-card label,.november-theme .gg-login-card div { color:#5c5038; }
+  .november-theme .gg-login-card input { background:#fffdf7!important; border:1px solid #cdbd9e!important; color:#3e4331!important; border-radius:12px!important; }
+  .november-theme .gg-login-card input::placeholder { color:#9b8c73; }
+  .november-theme .gg-login-card .gg-login-error { color:#a63725!important; }
+  .november-theme :is(button,input,select):focus-visible { outline:3px solid #bf7a29; outline-offset:3px; }
+  @media(min-width:900px) { .november-theme .gg-topbar { padding-left:calc((100% - 800px)/2)!important; padding-right:calc((100% - 800px)/2)!important; } }
+  @media(max-width:480px) {
+    .november-theme .gg-topbar { gap:8px; }
+    .november-theme .gg-topbar>div:last-child { margin-left:auto; }
+    .november-theme .gg-topbar>div:last-child span { font-size:12px!important; }
+    .november-theme .gg-gacha-scene { border-radius:18px!important; }
+    .november-theme .gg-november-hero h3 { font-size:clamp(20px,5.6vw,27px); }
+    .november-theme .gg-mission-card>div:has(>.gg-readable-copy) { flex-basis:calc(100% - 28px)!important; }
+    .november-theme .gg-mission-card>.gg-primary { margin-left:auto; }
+    .november-theme .gg-coin-panel.gg-coin-exchange { padding:16px; }
+    .november-theme .gg-coin-panel.gg-coin-exchange h3 { font-size:18px; }
+    .november-theme .gg-section-head h3 { font-size:17px!important; }
+  }
 `;
 const styles = {
   app: {
@@ -4433,3 +4588,4 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
 </script>
 </body>
 </html>
+

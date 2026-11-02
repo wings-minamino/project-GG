@@ -152,6 +152,26 @@ function computeRanking(draws, students, month) {
     count: stampsForStudentMonth(draws, s.id, month)
   })).sort((a, b) => b.count - a.count);
 }
+// Preserve October balances while extending the existing coin campaign through November 25 (JST).
+const COIN_START='2026-10-01',COIN_END='2026-11-25';
+function coinSeason(date=todayStr()){return date>=COIN_START&&date<=COIN_END;}
+function isCoinStampDate(date){return typeof date==='string'&&coinSeason(date.slice(0,10));}
+function coinStampTotal(draws,studentId){
+  return draws.filter(d=>d.studentId===studentId&&d.status==='承認済み'&&isCoinStampDate(d.approvedAt)).reduce((n,d)=>n+(d.value||1),0);
+}
+function coinMilestonesPaused(month,date=todayStr()){
+  return month==='2026-10'||(month==='2026-11'&&date<=COIN_END);
+}
+function milestoneStampsForStudentMonth(draws,studentId,month){
+  return stampsForStudentMonth(draws.filter(d=>!isCoinStampDate(d.approvedAt)),studentId,month);
+}
+function coinSpentForMonth(draws,coins,studentId,month){
+  const eligible=draws.filter(d=>d.studentId===studentId&&d.status==='承認済み'&&isCoinStampDate(d.approvedAt));
+  const before=eligible.filter(d=>monthKey(d.approvedAt)<month).reduce((n,d)=>n+(d.value||1),0);
+  const current=eligible.filter(d=>monthKey(d.approvedAt)===month).reduce((n,d)=>n+(d.value||1),0);
+  const spent=(coins.entries||[]).filter(e=>e.studentId===studentId&&e.source==='exchange').reduce((n,e)=>n+e.stampCost,0);
+  return Math.min(current,Math.max(0,spent-before));
+}
 function computeEarnedPrizes(draws, students, rankPrizes, milestonePrizes, month) {
   const ranking = computeRanking(draws, students, month);
   const earned = [];
@@ -167,7 +187,7 @@ function computeEarnedPrizes(draws, students, rankPrizes, milestonePrizes, month
     }
   });
   students.forEach(s => {
-    const count = stampsForStudentMonth(draws, s.id, month);
+    const count = milestoneStampsForStudentMonth(draws, s.id, month);
     milestonePrizes.forEach(mp => {
       if (count >= mp.threshold) {
         earned.push({
@@ -218,4 +238,5 @@ function settleStudentRanks(data,month) {
   }
   return data;
 }
-export { isRankingEligible, nextStudentRank, settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade };
+export { isRankingEligible, COIN_START, COIN_END, coinSeason, coinStampTotal, coinMilestonesPaused, nextStudentRank, settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade };
+

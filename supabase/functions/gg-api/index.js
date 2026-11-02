@@ -1,6 +1,6 @@
 import {photoAction} from './photos.js';
-import {COIN_MONTH,coinSeason,coinState,coinCommunityGoal,coinSummary,recordCoinVisit,coinChance} from './coins.js';
-import {settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
+import {coinSeason,coinState,coinCommunityGoal,coinSummary,recordCoinVisit,coinChance} from './coins.js';
+import {coinMilestonesPaused,settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
 
 // Bearer-token authentication, no ambient cookies: also supports VS Code Live Server.
 const globalHeaders = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type, authorization','Access-Control-Allow-Methods':'POST, OPTIONS','Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
@@ -182,7 +182,7 @@ export async function handler(req) {
         data=derived({...b.data,halloweenCoins:data?.halloweenCoins||{stampCost:null,entries:[],loginDays:{}},draws:[...b.data.draws.filter(d=>!d.coinReward&&!d.photoReward),...(data?.draws||[]).filter(d=>d.coinReward||d.photoReward)],missionSuggestions:data?.missionSuggestions||[],prizeClaims:data?.prizeClaims||{},rankPrizeMonth:data?.rankPrizeMonth||rewardMonth(),rankPrizeHistory:data?.rankPrizeHistory||{},rankRules:data?.rankRules||null,rankMonth:data?.rankMonth||null,studentRanks:data?.studentRanks||{},rankHistory:data?.rankHistory||{}});
       } else if(b.action==='set_coin_cost') {
         if(session.role!=='admin'||!data)fail(403,'管理者のみ操作できます');
-        if(!coinSeason())fail(403,'10月限定の設定です');
+        if(!coinSeason())fail(403,'コイン制度の実施期間中のみ設定できます（11月25日まで）');
         const c=coinState(data);
         if(b.expectedCost!==c.stampCost)fail(409,'交換条件が変更されました。更新してやり直してください');
         if(!Number.isSafeInteger(b.stampCost)||b.stampCost<1||b.stampCost>10000)fail(400,'スタンプ数は1〜10000個の整数にしてください');
@@ -251,7 +251,7 @@ export async function handler(req) {
           result.drawRequestId=b.requestId;
           data.draws.push(result);
         } else if(b.action==='exchange_coin') {
-          if(!coinSeason())fail(403,'コインへの交換は10月31日までです');
+          if(!coinSeason())fail(403,'コインへの交換は11月25日までです');
           const c=coinState(data),summary=coinSummary(data,id);
           if(!Number.isSafeInteger(c.stampCost)||c.stampCost<1)fail(400,'先生が交換条件を準備中です');
           if(b.expectedCost!==c.stampCost||b.expectedSpent!==summary.spent)fail(409,'交換状況が変わりました。最新の画面を確認してください');
@@ -270,7 +270,7 @@ export async function handler(req) {
           data.prizeClaims=data.prizeClaims||{};
           if(data.deliveries[key]) fail(409,'この景品は受け取り済みです');
           if(!data.prizeClaims[key]) {
-            if(b.type==='milestone'&&b.month===COIN_MONTH)fail(403,'10月のスタンプ景品はお菓子ガチャコインに変更されました');
+            if(b.type==='milestone'&&coinMilestonesPaused(b.month))fail(403,'対象期間のスタンプ景品はお菓子ガチャコインに変更されています');
             if(b.type==='milestone'&&!milestoneClaimOpen(b.month))fail(403,'スタンプ景品の申請期限は翌月10日までです');
             const choices=b.type==='rank'?(data.rankPrizeHistory?.[b.month]?.earned||[]):computeEarnedPrizes(data.draws,data.students,{},data.milestonePrizes,b.month);
             const earned=choices.find(e=>e.studentId===id&&e.type===b.type&&e.ref===b.ref);
@@ -298,3 +298,4 @@ export async function handler(req) {
   } catch(e) {return Response.json({error:e.status?e.message:'処理できませんでした。再試行してください。'},{status:e.status||500,headers});}
 }
 Deno.serve(handler);
+

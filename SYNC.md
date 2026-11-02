@@ -91,3 +91,19 @@ rankRules/ rankMonth/ studentRanks/ rankHistoryはサーバー管理。基準変
 ## 2026-10-06 検索結果からの除外
 
 生徒用・講師用HTMLにrobotsメタタグ（noindex, nofollow, noarchive）を追加。URLと生徒番号のみのログインを維持し、教室の合言葉は追加しない。対応する検索エンジンに検索結果への掲載を拒否する指定であり、認証・アクセス制限・完全な非公開化ではない。既存の検索結果から消えるまで時間がかかる場合がある。URLを共有された人や推測した人はログイン画面を開ける。robots.txtのクロール拒否はnoindexの読み取りを妨げるため追加しない。
+
+
+
+## 2026-10-26 コイン期間の延長
+
+今週から1か月間の指定に合わせ、交換・ガチャ当選・管理者設定を2026年11月25日23:59:59 JSTまで延長。既存制度を延長するため、10月1日からの承認済みスタンプ・使用済みスタンプ・コイン・受け取り履歴を保持し、11月25日までの承認済みスタンプを合算する。10月の未使用分は11月へ繰り越す。
+
+11月26日から通常スタンプ景品へ戻り、11月26日以降の承認分で集計する。コイン対象期間のスタンプを通常景品へ二重に使わない。ランキング・生徒ランクは従来どおり全スタンプを月別集計する。コイン受け渡しは期限後も可能。写真ミッションとハロウィン装飾の終了日は10月31日のまま。
+
+### November 2026 student design
+
+The approved autumn theme is enabled automatically from November 1 at 00:00 through November 30 at 23:59:59 JST (`isNovemberSeason`). December 1 restores the standard design. The student login, mission, prize, ranking and stamp views share the warm cream, forest green, wooden gacha and acorn artwork; the teacher portal stays unchanged. A midnight timer and focus/visibility refresh update an open app at the date boundary. The expired October photo mission is hidden from students after October 31; its teacher archive remains accessible.
+
+Artwork lives in `assets/november/`. The hero WebP is generated illustration with real UI text layered on top. Coin counts and progress always use the existing configured exchange cost and current student balance. The November visual period does not change the November 25 coin campaign deadline.
+
+Validation: `node tests/portals.test.cjs` checks both portal CSP hashes and the November start/end boundaries in JST, including exclusion of admin and other years. Run `python scripts/update-csp.py` after changes to generate the teacher entrypoint and refresh hashes.
