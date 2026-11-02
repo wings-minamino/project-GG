@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-VC6NXsS/whYf3sM/35Vv8GbE1AlN6uMzFpAx29NWaVE='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-7wuEdp4KzLHFziu+epExijoESlzhCA+krZhfoM8UBuk='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プロジェクトGG 講師用</title>
@@ -1024,7 +1024,7 @@ function GachaMissionApp() {
       gachaTimeouts.current.forEach(clearTimeout);
       if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){setGachaPhase('done');return;}
       setGachaPhase('shaking');
-      const timing=isNovemberSeason()?[1200,2500,3400]:[900,1700,2400];
+      const timing=isNovemberSeason()?[1800,3100,4000]:[900,1700,2400];
       gachaTimeouts.current=[
         setTimeout(()=>setGachaPhase('dropping'),timing[0]),
         setTimeout(()=>setGachaPhase('cracking'),timing[1]),
@@ -1820,15 +1820,16 @@ function SecuritySettings({onChange}) {
 function NovemberHero({phase='idle',onSkip}={}) {
   const h=React.createElement;
   const active=['waiting','shaking','dropping','cracking'].includes(phase);
-  const captions={waiting:['準備中…','もう少し待ってね'],shaking:['何が出るかな？','カプセルをまぜまぜ…'],dropping:['コロン！','カプセルが出てきた！'],cracking:['せーの…','オープン！']};
+  const mechanical=!!onSkip&&isNovemberSeason();
+  const captions={waiting:['準備中…','もう少し待ってね'],shaking:['ぐるっと回して…','カプセルをまぜまぜ…'],dropping:['コロン！','カプセルが出てきた！'],cracking:['せーの…','オープン！']};
   const caption=captions[phase];
-  return h('div',{className:'gg-november-hero gg-november-'+phase+(active?' gg-november-playing':'')},
+  return h('div',{className:'gg-november-hero gg-november-'+phase+(active?' gg-november-playing':'')+(mechanical?' gg-november-mechanical':'')},
     h('div',{className:'gg-november-art','aria-hidden':true}),
+    mechanical&&h(NovemberMechanism,{phase}),
     active?h(React.Fragment,null,
       h('div',{className:'gg-november-motion-copy',role:'status','aria-live':'polite','aria-atomic':true},
         h('span',{className:'gg-november-motion-label'},'ミッションガチャ'),
         h('strong',null,caption[0]),h('span',null,caption[1])),
-      phase==='shaking'&&h('div',{className:'gg-november-orbit','aria-hidden':true},h('i'),h('i'),h('i')),
       (phase==='dropping'||phase==='cracking')&&h('div',{className:'gg-november-capsule','aria-hidden':true},
         h('span',{className:'gg-november-capsule-top'}),h('span',{className:'gg-november-capsule-bottom'}),
         h('span',{className:'gg-november-capsule-star'},'✦')),
@@ -1837,6 +1838,52 @@ function NovemberHero({phase='idle',onSkip}={}) {
     ):h(React.Fragment,null,
       h('h3',null,h('span',null,'がんばりが実る、'),h('span',null,'11月。')),
       h('p',null,'毎日の一歩を、力にしよう。')));
+}
+function novemberCrankGeometry(progress) {
+  const angle=2*Math.PI*(.5-.5*Math.cos(Math.PI*Math.max(0,Math.min(1,progress))));
+  const armX=1342+56*Math.sin(angle),y=672-132*Math.cos(angle),knobX=armX+65;
+  return {path:`M 1342 672 L ${armX} ${y} L ${knobX} ${y}`,knobX,knobY:y};
+}
+function NovemberMechanism({phase}) {
+  const h=React.createElement,arm=useRef(null),knob=useRef(null);
+  useEffect(()=>{
+    let frame=0,start=null;
+    const paint=progress=>{
+      const geometry=novemberCrankGeometry(progress);
+      if(arm.current)for(const path of arm.current.children)path.setAttribute('d',geometry.path);
+      if(knob.current){knob.current.style.left=geometry.knobX/1536*100+'%';knob.current.style.top=geometry.knobY/1024*100+'%';}
+    };
+    paint(0);
+    if(phase!=='shaking'||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    const step=now=>{
+      if(start===null)start=now;
+      const progress=Math.min(1,(now-start)/1800);
+      paint(progress);
+      if(progress<1)frame=requestAnimationFrame(step);
+    };
+    frame=requestAnimationFrame(step);
+    return()=>cancelAnimationFrame(frame);
+  },[phase]);
+  // Position, size, tilt and tint of each photographic capsule inside the glass.
+  const balls=[[986,350,103,-25,70],[1206,350,106,15,-32],[1118,304,110,-18,0],[1018,315,100,20,68],[1222,315,103,35,0],[935,405,105,-35,-45],[1035,407,115,35,0],[1143,408,112,55,70],[1265,406,108,-20,-45],[969,494,112,-30,70],[1073,498,110,25,-45],[1243,492,114,12,0],[1152,499,114,10,0]];
+  const rest=novemberCrankGeometry(0);
+  return h('div',{className:'gg-november-mechanism','aria-hidden':true},
+    h('div',{className:'gg-mix-chamber'},...balls.map(([x,y,size,tilt,tint],i)=>{
+      const style={left:(x-size/2)/1536*100+'%',top:(y-size/2)/1024*100+'%',width:size/1536*100+'%','--ball-tilt':tilt+'deg','--ball-tint':tint+'deg'};
+      [4,8,3].forEach((offset,j)=>{const target=balls[(i+offset)%balls.length];style['--mix-x'+j]=(target[0]-x)/size*100+'%';style['--mix-y'+j]=(target[1]-y)/size*100+'%';});
+      return h('span',{key:i,className:'gg-mix-ball'+(i===balls.length-1?' gg-selected-ball':''),style},h('span',{className:'gg-ball-texture'}));
+    })),
+    h('svg',{className:'gg-mechanism-glass',viewBox:'0 0 1536 1024',focusable:'false'},
+      h('path',{d:'M 990 275 Q 891 345 907 469',fill:'none',stroke:'#fff',strokeWidth:16,opacity:.22,strokeLinecap:'round'}),
+      h('path',{d:'M 1266 283 Q 1362 397 1297 512',fill:'none',stroke:'#fff',strokeWidth:9,opacity:.25,strokeLinecap:'round'})),
+    h('svg',{className:'gg-crank',viewBox:'0 0 1536 1024',focusable:'false'},
+      h('defs',null,
+        h('linearGradient',{id:'gg-crank-gold',x1:'0',y1:'0',x2:'1',y2:'0'},h('stop',{offset:'0%',stopColor:'#70420e'}),h('stop',{offset:'35%',stopColor:'#f9da86'}),h('stop',{offset:'60%',stopColor:'#b9822c'}),h('stop',{offset:'100%',stopColor:'#f8d881'})),
+        h('clipPath',{id:'gg-crank-visible'},h('path',{d:'M 1327 445 H 1536 V 930 H 1327 Z'}))),
+      h('g',{ref:arm,clipPath:'url(#gg-crank-visible)',fill:'none',strokeLinecap:'round',strokeLinejoin:'round'},
+        h('path',{d:rest.path,stroke:'#744311',strokeWidth:19}),h('path',{d:rest.path,stroke:'url(#gg-crank-gold)',strokeWidth:12})),
+      h('ellipse',{cx:1342,cy:672,rx:12,ry:20,fill:'url(#gg-crank-gold)',stroke:'#754710',strokeWidth:2})),
+    h('span',{ref:knob,className:'gg-crank-knob',style:{left:rest.knobX/1536*100+'%',top:rest.knobY/1024*100+'%'}}));
 }
 function LoginScreen({
   seasonal=false,
@@ -3780,38 +3827,42 @@ const css = `
   .november-theme .gg-primary { background:#315b3b!important; color:#fffdf5!important; border-color:#315b3b!important; }
   .november-theme .gg-primary:disabled { background:#e0e4d8!important; color:#63694f!important; box-shadow:none!important; opacity:1; }
 
-  /* Image-based November draw: the same artwork, with lightweight DOM motion. */
+  /* Fixed photographic cabinet, independently animated crank and capsules. */
   .november-theme .gg-november-motion-copy { position:absolute; left:7%; top:23%; width:48%; display:flex; flex-direction:column; gap:9px; color:#3c4e2d; text-shadow:0 2px 12px #fffbea; }
   .november-theme .gg-november-motion-copy strong { font-size:clamp(18px,5.5cqw,40px); line-height:1.45; font-weight:900; white-space:nowrap; letter-spacing:-.04em; }
   .november-theme .gg-november-motion-copy>span:last-child { font-size:clamp(11px,2.7cqw,17px); font-weight:700; line-height:1.6; }
   .november-theme .gg-november-motion-label { width:fit-content; padding:4px 8px; border:1px solid #bd914d88; border-radius:20px; font-size:clamp(10px,2.3cqw,12px); font-weight:800; color:#715125; background:#fff3d8d9; }
-  .november-theme .gg-november-shaking .gg-november-art { animation:ggNovemberRattle .3s ease-in-out 4; transform-origin:72% 84%; }
   .november-theme .gg-november-skip { position:absolute; left:7%; bottom:10%; min-height:36px; padding:7px 12px; border:1px solid #886c3b; border-radius:20px; background:#fff8e9ed; color:#4b5431; font-family:inherit; font-weight:700; font-size:12px; cursor:pointer; z-index:4; }
   .november-theme .gg-november-skip:focus-visible { outline:3px solid #315b3b; outline-offset:3px; }
-  .november-theme .gg-november-orbit { position:absolute; left:57%; top:23%; width:31%; aspect-ratio:1; border:2px dashed #fff3bdc9; border-radius:50%; box-shadow:0 0 20px #ffdc7b88,inset 0 0 18px #ffdc7b55; animation:ggNovemberOrbit .75s linear infinite; }
-  .november-theme .gg-november-orbit i { position:absolute; width:10%; aspect-ratio:1; border-radius:50%; background:radial-gradient(circle at 30% 25%,#fffbea,#ffbe4d 65%,#ad641d); box-shadow:0 2px 5px #61411855; }
-  .november-theme .gg-november-orbit i:nth-child(1) { top:0; left:22%; }
-  .november-theme .gg-november-orbit i:nth-child(2) { top:56%; right:-3%; background:radial-gradient(circle at 30% 25%,#f1f9d0,#7c9845 65%,#385329); }
-  .november-theme .gg-november-orbit i:nth-child(3) { bottom:7%; left:9%; background:radial-gradient(circle at 30% 25%,#fff4db,#e26d42 65%,#a34022); }
-  .november-theme .gg-november-capsule { position:absolute; left:54%; top:73%; width:12%; aspect-ratio:1; z-index:2; transform:translate(-50%,-50%) scale(1.35); filter:drop-shadow(0 7px 5px #51310b66); }
-  .november-theme .gg-november-capsule-top,.november-theme .gg-november-capsule-bottom { position:absolute; left:0; width:100%; height:50%; box-sizing:border-box; border:1px solid #fff3c9; box-shadow:inset -5px -3px 9px #7e501b55; }
-  .november-theme .gg-november-capsule-top { top:0; border-radius:100% 100% 0 0 / 200% 200% 0 0; background:radial-gradient(ellipse at 30% 25%,#ffffffed,#fff7dfbe 32%,#d4c49dee 95%); }
-  .november-theme .gg-november-capsule-bottom { bottom:0; border-radius:0 0 100% 100% / 0 0 200% 200%; background:radial-gradient(ellipse at 30% 20%,#a5ba72,#4e783e 70%,#284a2f); }
-  .november-theme .gg-november-capsule-star { position:absolute; inset:28% 0 0; text-align:center; color:#fff1b4; font-size:clamp(16px,4cqw,32px); text-shadow:0 1px 3px #72521f; line-height:1; }
+  .november-theme .gg-november-capsule { position:absolute; left:54%; top:80%; width:7.5%; aspect-ratio:1; z-index:2; transform:translate(-50%,-50%) scale(1.1); filter:drop-shadow(0 7px 5px #51310b66); }
+  .november-theme .gg-november-capsule-top,.november-theme .gg-november-capsule-bottom { position:absolute; inset:0; width:100%; height:100%; border-radius:50%; background-image:url('../assets/november/hero.webp'); background-size:1280% 853.333333%; background-position:49.223164% 82.964602%; }
+  .november-theme .gg-november-capsule-top { clip-path:polygon(0 0,100% 0,100% 50%,0 50%); }
+  .november-theme .gg-november-capsule-bottom { clip-path:polygon(0 50%,100% 50%,100% 100%,0 100%); }
+  .november-theme .gg-november-capsule-star { position:absolute; inset:28% 0 0; text-align:center; color:#fff1b4; font-size:clamp(16px,4cqw,32px); text-shadow:0 1px 3px #72521f; line-height:1; opacity:0; }
   .november-theme .gg-november-dropping .gg-november-capsule { animation:ggNovemberRoll 1.3s cubic-bezier(.2,.65,.3,1) both; }
   .november-theme .gg-november-cracking .gg-november-capsule-top { animation:ggNovemberOpenTop .9s ease-out both; }
   .november-theme .gg-november-cracking .gg-november-capsule-bottom { animation:ggNovemberOpenBottom .9s ease-out both; }
   .november-theme .gg-november-cracking .gg-november-capsule-star { animation:ggNovemberStar .9s ease-out both; }
-  .november-theme .gg-november-burst { position:absolute; left:54%; top:73%; width:38%; aspect-ratio:1; transform:translate(-50%,-50%); border-radius:50%; background:radial-gradient(circle,#fff6cae6, #ffd67577 25%,#ffda7400 65%); animation:ggNovemberGlow .9s ease-out both; pointer-events:none; }
+  .november-theme .gg-november-burst { position:absolute; left:54%; top:80%; width:30%; aspect-ratio:1; transform:translate(-50%,-50%); border-radius:50%; background:radial-gradient(circle,#fff6cae6, #ffd67577 25%,#ffda7400 65%); animation:ggNovemberGlow .9s ease-out both; pointer-events:none; }
   .november-theme .gg-november-burst span { position:absolute; left:50%; top:50%; color:#fff5c9; text-shadow:0 0 8px #dc9a30; font-size:clamp(13px,4cqw,30px); transform:rotate(calc(var(--i)*45deg)) translateY(-150%); animation:ggNovemberSpark .9s ease-out both; }
-  @keyframes ggNovemberRattle { 0%,100%{transform:scale(1.015) rotate(0)} 25%{transform:scale(1.015) rotate(-.55deg)} 75%{transform:scale(1.015) rotate(.55deg)} }
-  @keyframes ggNovemberOrbit { to { transform:rotate(360deg); } }
-  @keyframes ggNovemberRoll { 0%{left:71.5%;top:78%;opacity:0;transform:translate(-50%,-50%) scale(.5) rotate(-160deg)} 14%{opacity:1;left:70%;top:81%} 44%{left:60%;top:78%;transform:translate(-50%,-50%) scale(.9) rotate(-60deg)} 70%{left:57%;top:76%;transform:translate(-50%,-50%) scale(1.2) rotate(15deg)} 85%{left:54%;top:70%} 100%{left:54%;top:73%;opacity:1;transform:translate(-50%,-50%) scale(1.35) rotate(0)} }
+  @keyframes ggNovemberRoll { 0%{left:71.8%;top:76.8%;opacity:0;transform:translate(-50%,-50%) scale(.45) rotate(-30deg);filter:brightness(.55)} 18%{left:71.8%;top:78%;opacity:1;transform:translate(-50%,-50%) scale(.65) rotate(0);filter:brightness(.8)} 38%{left:71.8%;top:82%;transform:translate(-50%,-50%) scale(.9) rotate(30deg);filter:brightness(1)} 58%{left:66%;top:85%;transform:translate(-50%,-50%) scale(1) rotate(90deg)} 82%{left:57%;top:79%;transform:translate(-50%,-50%) scale(1.1) rotate(190deg)} 100%{left:54%;top:80%;opacity:1;transform:translate(-50%,-50%) scale(1.1) rotate(0);filter:brightness(1)} }
   @keyframes ggNovemberOpenTop { to { transform:translate(-28%,-70%) rotate(-25deg);opacity:0; } }
   @keyframes ggNovemberOpenBottom { to { transform:translate(28%,70%) rotate(25deg);opacity:0; } }
   @keyframes ggNovemberStar { 55%{transform:scale(2);opacity:1} 100%{transform:scale(2.6);opacity:0} }
   @keyframes ggNovemberGlow { 0%{opacity:0;scale:.3} 35%{opacity:1} 100%{opacity:0;scale:1.5} }
   @keyframes ggNovemberSpark { from{opacity:1;transform:rotate(calc(var(--i)*45deg)) translateY(-50%) scale(.4)} to{opacity:0;transform:rotate(calc(var(--i)*45deg)) translateY(-290%) scale(1.2)} }
+
+  .november-theme .gg-november-mechanical .gg-november-art { background-image:url('../assets/november/mechanism-plate.webp'); }
+  .gg-november-mechanism,.gg-mix-chamber,.gg-mechanism-glass,.gg-crank { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  .gg-mix-chamber { clip-path:polygon(65% 23%,80% 23%,85% 31%,87.4% 39%,87% 48%,84% 54%,59.5% 54%,57.8% 48%,56.5% 41%,58% 33%); }
+  .gg-mix-ball { position:absolute; display:block; aspect-ratio:1; }
+  .gg-ball-texture { display:block; width:100%; height:100%; border-radius:50%; background-image:url('../assets/november/hero.webp'); background-size:1280% 853.333333%; background-position:49.223164% 82.964602%; transform:rotate(var(--ball-tilt)); filter:hue-rotate(var(--ball-tint)); box-shadow:0 3px 5px #43270535; }
+  .gg-november-shaking .gg-mix-ball { animation:ggCapsulesMix 1.8s ease-in-out both; }
+  .gg-november-dropping .gg-selected-ball { animation:ggCapsuleFeed .22s ease-in both; }
+  .gg-november-cracking .gg-selected-ball,.gg-november-done .gg-selected-ball { visibility:hidden; }
+  .gg-crank-knob { position:absolute; display:block; width:5.46875%; aspect-ratio:1; border-radius:50%; transform:translate(-50%,-50%); background-image:url('../assets/november/hero.webp'); background-size:1828.571429% 1219.047619%; background-position:94.76584% 52.446809%; box-shadow:0 4px 5px #4a250b40; }
+  @keyframes ggCapsulesMix { 0%{transform:translate(0,0) rotate(0)} 25%{transform:translate(var(--mix-x0),var(--mix-y0)) rotate(130deg)} 52%{transform:translate(var(--mix-x1),var(--mix-y1)) rotate(310deg)} 77%{transform:translate(var(--mix-x2),var(--mix-y2)) rotate(520deg)} 100%{transform:translate(0,0) rotate(720deg)} }
+  @keyframes ggCapsuleFeed { to{transform:translateY(110%);opacity:0} }
   @media(prefers-reduced-motion:reduce) { .gg-november-hero * { animation:none!important; } }
   .november-theme .gg-gacha-scene>.gg-primary { position:relative; display:block; width:76%; max-width:400px; min-height:52px; margin:-12px auto 10px; padding:14px 12px!important; border-radius:14px!important; font-size:19px!important; font-weight:800; box-shadow:0 4px 0 #23442c,0 7px 14px #315b3b25; }
   .november-theme .gg-gacha-scene>div:not([class]) { padding:0 16px; color:#75674d!important; }

@@ -6,7 +6,7 @@ let resolve,calls=0,phase='idle',result=null,reduced=false,november=true;const t
 const ctx={gachaDrawing:{current:false},gachaPhase:'idle',gachaTimeouts:{current:[]},cloud:{current:{generation:1}},setGachaPhase:p=>{phase=p;ctx.gachaPhase=p},setGachaResult:r=>result=r,studentAction:()=>{calls++;return new Promise(r=>resolve=r)},isNovemberSeason:()=>november,window:{matchMedia:()=>({matches:reduced})},setTimeout:(fn,ms)=>{timers.set(++n,{fn,ms});return n},clearTimeout:id=>timers.delete(id)};
 vm.createContext(ctx);vm.runInContext(source,ctx);
 const a=ctx.pullGacha();await ctx.pullGacha();assert.equal(calls,1);assert.equal(phase,'waiting');resolve({result:{id:'draw',missionText:'Actual mission'}});await a;assert.equal(phase,'shaking');assert.equal(result.id,'draw');
-assert.deepEqual([...timers.values()].map(t=>t.ms),[1200,2500,3400]);
+assert.deepEqual([...timers.values()].map(t=>t.ms),[1800,3100,4000]);
 await ctx.pullGacha();assert.equal(calls,1,'animation cannot cause a second draw');
 for(const [id,t] of [...timers]){timers.delete(id);t.fn();}
 assert.equal(phase,'done');assert.equal(result.missionText,'Actual mission');
