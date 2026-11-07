@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-1pS/ZUmvwZD0oxUgUILYcvq2NmX16PepxrAqOC0NcV4='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-AN3DL+cWMfFwkaHQnVX56RIqAJK4VINOMRjgrHDZOas='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ガチャミッション</title>
@@ -581,6 +581,9 @@ function gradeSortIndex(grade) {
   const idx = GRADE_LEVELS.indexOf(grade);
   return idx === -1 ? GRADE_LEVELS.length : idx;
 }
+function studentsInGrades(students, grades) {
+  return grades.length ? students.filter(student => grades.includes(student.grade)) : students;
+}
 function isMissionEligible(mission, studentGrade) {
   if (!mission.targetGroup) return true;
   const group = GRADE_GROUPS[mission.targetGroup];
@@ -723,6 +726,8 @@ function GachaMissionApp() {
   const [gradeFilter, setGradeFilter] = useState("");
   const [schoolFilter, setSchoolFilter] = useState("");
   const [issueMissionId, setIssueMissionId] = useState("");
+  const [issueGrades, setIssueGrades] = useState([]);
+  const [issueSearchQuery, setIssueSearchQuery] = useState("");
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const [studentSearchQuery, setStudentSearchQuery] = useState("");
   const [studentSortBy, setStudentSortBy] = useState("number");
@@ -1152,6 +1157,11 @@ function GachaMissionApp() {
   function toggleSelectStudent(id) {
     setSelectedStudentIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   }
+  function changeIssueGrades(grades) {
+    setIssueGrades(grades);
+    const allowedIds = new Set(studentsInGrades(students, grades).map(student => student.id));
+    setSelectedStudentIds(ids => ids.filter(id => allowedIds.has(id)));
+  }
   function selectAllStudents(ids) {
     setSelectedStudentIds(prev => Array.from(new Set([...prev, ...ids])));
   }
@@ -1169,13 +1179,13 @@ function GachaMissionApp() {
   function issueMission() {
     const regularMission = missions.find(m => m.id === issueMissionId);
     const testMission = testMissions.find(m => m.id === issueMissionId);
-    if (!regularMission && !testMission || selectedStudentIds.length === 0) return;
+    if (!regularMission && !testMission || issueRecipients.length === 0) return;
     const drawnAt = todayStr();
     const text = regularMission ? regularMission.text : testMission.text;
     const deadline = regularMission ? regularMission.deadlineDays ? addDays(drawnAt, regularMission.deadlineDays) : null : testMission.deadline;
-    const newDraws = selectedStudentIds.map(sid => ({
+    const newDraws = issueRecipients.map(student => ({
       id: uid("d"),
-      studentId: sid,
+      studentId: student.id,
       missionId: issueMissionId,
       missionText: text,
       status: "進行中",
@@ -1186,8 +1196,8 @@ function GachaMissionApp() {
       approvedAt: null,
       issuedByAdmin: true,
       issuedAt: new Date().toISOString(),
-      recipientName: students.find(s => s.id === sid)?.name || "不明",
-      recipientNumber: students.find(s => s.id === sid)?.number || "",
+      recipientName: student.name,
+      recipientNumber: student.number,
       isTestMission: !!testMission
     }));
     setDraws([...draws, ...newDraws]);
@@ -1326,12 +1336,18 @@ function GachaMissionApp() {
   const myMilestoneStampsThisMonth = useMemo(() => currentStudentId ? milestoneStampsForStudentMonth(draws,currentStudentId,studentMonth) : 0,[draws,currentStudentId,studentMonth]);
   const pendingApprovals = useMemo(() => draws.filter(d => d.status === "承認待ち").sort((a, b) => a.drawnAt.localeCompare(b.drawnAt)), [draws]);
   const ranking = useMemo(() => computeRanking(draws, students, rankMonth), [draws, students, rankMonth]);
+  const issueGradeStudents = useMemo(() => studentsInGrades(students, issueGrades), [students, issueGrades]);
+  const issueRecipients = useMemo(() => {
+    const selected = new Set(selectedStudentIds);
+    return issueGradeStudents.filter(student => selected.has(student.id));
+  }, [issueGradeStudents, selectedStudentIds]);
+  const isIssueTab = adminTab === "issue";
+  const activeStudentQuery = isIssueTab ? issueSearchQuery : studentSearchQuery;
   const filteredSortedStudents = useMemo(() => {
-    const query = studentSearchQuery.trim();
-    let list = students.filter(s => !query || s.name.includes(query) || s.number.includes(query));
-    if (gradeFilter) list = list.filter(s => s.grade === gradeFilter);
-    if (schoolFilter) list = list.filter(s => s.school === schoolFilter);
-    list = [...list];
+    const query = activeStudentQuery.trim();
+    const candidates = isIssueTab ? issueGradeStudents : students.filter(student =>
+      (!gradeFilter || student.grade === gradeFilter) && (!schoolFilter || student.school === schoolFilter));
+    const list = candidates.filter(s => !query || s.name.includes(query) || s.number.includes(query));
     if (studentSortBy === "school") {
       list.sort((a, b) => (a.school || "").localeCompare(b.school || "", "ja") || a.number.localeCompare(b.number));
     } else if (studentSortBy === "grade") {
@@ -1340,7 +1356,7 @@ function GachaMissionApp() {
       list.sort((a, b) => a.number.localeCompare(b.number));
     }
     return list;
-  }, [students, studentSearchQuery, studentSortBy, gradeFilter, schoolFilter]);
+  }, [students, isIssueTab, issueGradeStudents, activeStudentQuery, studentSortBy, gradeFilter, schoolFilter]);
   const schoolOptions = useMemo(() => Array.from(new Set(students.map(s => s.school).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ja")), [students]);
   function earnedForMonth(month) {
     const earned=[...computeEarnedPrizes(draws,students,{},coinMilestonesPaused(month)?[]:milestonePrizes,month),
@@ -1574,15 +1590,17 @@ function GachaMissionApp() {
     removeStudent: removeStudent,
     issueMissionId: issueMissionId,
     setIssueMissionId: setIssueMissionId,
-    selectedStudentIds: selectedStudentIds,
+    issueGrades,
+    changeIssueGrades,
+    selectedStudentIds: issueRecipients.map(student => student.id),
     toggleSelectStudent: toggleSelectStudent,
     selectAllStudents: selectAllStudents,
     clearSelectedStudents: clearSelectedStudents,
     issueMission: issueMission,
     issuedMissionHistory: draws.filter(d => d.issuedByAdmin).slice().reverse(),
     cancelIssuedMission: cancelIssuedMission,
-    studentSearchQuery: studentSearchQuery,
-    setStudentSearchQuery: setStudentSearchQuery,
+    studentSearchQuery: activeStudentQuery,
+    setStudentSearchQuery: isIssueTab ? setIssueSearchQuery : setStudentSearchQuery,
     studentSortBy: studentSortBy,
     setStudentSortBy: setStudentSortBy,
     filteredSortedStudents: filteredSortedStudents,
@@ -2637,6 +2655,8 @@ function AdminView(props) {
     removeStudent,
     issueMissionId,
     setIssueMissionId,
+    issueGrades,
+    changeIssueGrades,
     selectedStudentIds,
     toggleSelectStudent,
     selectAllStudents,
@@ -2699,6 +2719,9 @@ function AdminView(props) {
     isMobile
   } = props;
   const sortedMilestones = useMemo(() => [...milestonePrizes].sort((a, b) => a.threshold - b.threshold), [milestonePrizes]);
+  const hiddenRecipientCount = adminTab === "issue" && studentSearchQuery?.trim()
+    ? selectedStudentIds.length - filteredSortedStudents.filter(student => selectedStudentIds.includes(student.id)).length
+    : 0;
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: isMobile ? {
       ...styles.tabs,
@@ -3341,7 +3364,23 @@ function AdminView(props) {
     value: tm.id
   }, "【特別ミッション】", tm.text, "(\u671F\u9650: ", tm.deadline, " / +", tm.stampReward, "\u500B)")))), /*#__PURE__*/React.createElement("h4", {
     style: styles.subHeading
-  }, "\u9001\u308B\u76F8\u624B\u3092\u9078\u3076(", selectedStudentIds.length, "\u4EBA\u9078\u629E\u4E2D)"), /*#__PURE__*/React.createElement("div", {
+  }, "\u9001\u308B\u76F8\u624B\u3092\u9078\u3076(", selectedStudentIds.length, "\u4EBA\u9078\u629E\u4E2D)"),
+  React.createElement("fieldset", { className: "gg-issue-grades" },
+    React.createElement("legend", null, "学年で絞り込み（複数選択可）"),
+    React.createElement("div", { className: "gg-issue-grade-options" },
+      React.createElement("button", {
+        type: "button", "aria-pressed": issueGrades.length === 0,
+        onClick: () => changeIssueGrades([])
+      }, "全学年"),
+      GRADE_LEVELS.map(grade => {
+        const active = issueGrades.includes(grade);
+        return React.createElement("button", {
+          key: grade, type: "button", "aria-pressed": active,
+          onClick: () => changeIssueGrades(active ? issueGrades.filter(g => g !== grade) : [...issueGrades, grade])
+        }, grade);
+      })
+    )
+  ), React.createElement("div", {
     style: styles.newMissionForm
   }, /*#__PURE__*/React.createElement("input", {
     style: {
@@ -3368,11 +3407,14 @@ function AdminView(props) {
     style: styles.approveActions
   }, /*#__PURE__*/React.createElement("button", {
     style: styles.rejectBtn,
+    disabled: filteredSortedStudents.length === 0,
     onClick: () => selectAllStudents(filteredSortedStudents.map(s => s.id))
   }, "\u8868\u793A\u4E2D\u3092\u5168\u3066\u9078\u629E"), /*#__PURE__*/React.createElement("button", {
     style: styles.rejectBtn,
     onClick: clearSelectedStudents
-  }, "\u9078\u629E\u89E3\u9664")), /*#__PURE__*/React.createElement("div", {
+  }, "\u9078\u629E\u89E3\u9664"), React.createElement("span", {
+    className: "gg-issue-count", role: "status"
+  }, filteredSortedStudents.length, "人表示", hiddenRecipientCount > 0 && `（検索結果外に選択済み ${hiddenRecipientCount}人）`)), /*#__PURE__*/React.createElement("div", {
     style: {
       ...styles.missionAdminList,
       marginTop: 10
@@ -3439,6 +3481,13 @@ function AdminView(props) {
   }, rankPrizes[String(i + 1)]))))));
 }
 const css = `
+  .gg-issue-grades { min-width:0; margin:0 0 12px; padding:9px 12px 12px; border:1px solid #e5dfd6; border-radius:10px; }
+  .gg-issue-grades legend { padding:0 5px; font-size:13px; font-weight:700; }
+  .gg-issue-grade-options { display:flex; flex-wrap:wrap; gap:6px; }
+  .gg-issue-grade-options button { min-height:34px; padding:4px 12px; border:1px solid #d2c8bc; border-radius:16px; color:#423b36; background:#fff; font:inherit; font-size:13px; cursor:pointer; }
+  .gg-issue-grade-options button[aria-pressed="true"] { color:#fff; background:#a61f25; border-color:#a61f25; font-weight:700; }
+  .gg-issue-grade-options button:focus-visible { outline:2px solid #67338b; outline-offset:2px; }
+  .gg-issue-count { align-self:center; margin-left:4px; font-size:13px; color:#655e58; }
   .gg-community-goal { margin:0 0 20px; padding:20px; border:1px solid #e8bf78; border-radius:18px; background:linear-gradient(120deg,#fff7df,#fff1e9); color:#492c23; }
   .gg-community-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }.gg-community-heading>div { min-width:0; }.gg-community-eyebrow { color:#8a4b13; font-size:12px; font-weight:800; letter-spacing:.06em; }.gg-community-goal h3 { margin:6px 0 14px; color:#492c23; font-size:19px; line-height:1.6; }.gg-community-icon { flex-shrink:0; font-size:32px; }
   .gg-community-numbers { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:6px 16px; font-size:14px; }.gg-community-numbers span strong { font-size:28px; color:#713212; }.gg-community-numbers>strong { color:#713212; font-size:16px; }

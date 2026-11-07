@@ -49,7 +49,7 @@ for(const file of ['index.html','admin/index.html']){
  for(const adminTab of ['missions','approve','issue']){
   const admin=ctx.AdminView({adminTab,isMobile:false,pendingApprovals:history,undeliveredCount:0,pendingSuggestions:[],milestonePrizes:[],
    missions:[{id:'normal',text:'通常',deadlineDays:3}],testMissions:[special],hiddenMissions:[],dailyPullLimit:3,
-   students:[],filteredSortedStudents:[],selectedStudentIds:[],issuedMissionHistory:history,schoolOptions:[],issueMissionId:'special',studentName:()=> '表示確認'});
+   students:[],filteredSortedStudents:[],selectedStudentIds:[],issueGrades:[],issuedMissionHistory:history,schoolOptions:[],issueMissionId:'special',studentName:()=> '表示確認'});
   assert.ok(text(admin).includes('特別ミッション'));
   assert.equal(nodes(admin).filter(n=>hasClass(n,'gg-special-mission')).length,1);
   if(adminTab==='issue'){
