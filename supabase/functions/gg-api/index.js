@@ -180,6 +180,20 @@ export async function handler(req) {
         validate(b.data);
         // This collection is managed by explicit actions; older clients must not erase it.
         data=derived({...b.data,halloweenCoins:data?.halloweenCoins||{stampCost:null,entries:[],loginDays:{}},draws:[...b.data.draws.filter(d=>!d.coinReward&&!d.photoReward),...(data?.draws||[]).filter(d=>d.coinReward||d.photoReward)],missionSuggestions:data?.missionSuggestions||[],prizeClaims:data?.prizeClaims||{},rankPrizeMonth:data?.rankPrizeMonth||rewardMonth(),rankPrizeHistory:data?.rankPrizeHistory||{},rankRules:data?.rankRules||null,rankMonth:data?.rankMonth||null,studentRanks:data?.studentRanks||{},rankHistory:data?.rankHistory||{}});
+      } else if(b.action==='edit_mission') {
+        if(session.role!=='admin'||!data)fail(403,'管理者のみ操作できます');
+        if(!['normal','special','hidden'].includes(b.kind)||typeof b.id!=='string')fail(400,'ミッションの種類を確認してください');
+        const collection={normal:'missions',special:'testMissions',hidden:'hiddenMissions'}[b.kind];
+        const mission=data[collection].find(m=>m.id===b.id);
+        if(!mission)fail(404,'このミッションは削除されています。一覧を確認してください');
+        const field=b.kind==='hidden'?'name':'text';
+        if(!b.expected||b.expected.text!==mission[field]||b.expected.stampReward!==(mission.stampReward||1))fail(409,'このミッションは別の端末で変更されました。編集をキャンセルし、最新の内容で開き直してください');
+        const text=typeof b.text==='string'?b.text.trim():'';
+        if(!text||text.length>2000)fail(400,'ミッションの内容を1〜2000文字で入力してください');
+        if(!Number.isSafeInteger(b.stampReward)||b.stampReward<1)fail(400,'シールの枚数は1以上の整数で入力してください');
+        // Update the template only. Draws and earned achievements retain their original rewards.
+        mission[field]=text;mission.stampReward=b.stampReward;
+        result={id:mission.id,kind:b.kind};
       } else if(b.action==='set_coin_cost') {
         if(session.role!=='admin'||!data)fail(403,'管理者のみ操作できます');
         if(!coinSeason())fail(403,'コイン制度の実施期間中のみ設定できます（11月25日まで）');
@@ -242,7 +256,7 @@ export async function handler(req) {
           if(!missions.length) fail(400,'対象のミッションがありません');
           if(data.dailyPullLimit>0&&data.draws.filter(d=>d.studentId===id&&d.drawnAt===todayStr()&&!d.issuedByAdmin&&!d.hidden).length>=data.dailyPullLimit) fail(400,'今日のガチャ回数の上限です');
           const m=missions[Math.floor(Math.random()*missions.length)],date=todayStr();
-          result={id:uid(),studentId:id,missionId:m.id,missionText:m.text,status:'進行中',color:randomCapsuleColor(),drawnAt:date,deadline:m.deadlineDays?addDays(date,m.deadlineDays):null,approvedAt:null};
+          result={id:uid(),studentId:id,missionId:m.id,missionText:m.text,status:'進行中',color:randomCapsuleColor(),drawnAt:date,deadline:m.deadlineDays?addDays(date,m.deadlineDays):null,value:m.stampReward||1,approvedAt:null};
           if(coinRoll<coinChance(data,id)) {
             result={id:uid(),studentId:id,missionId:'halloween-coin',missionText:'お菓子ガチャコイン1枚プレゼント！',status:'コイン当選',coinReward:true,color:'#e9aa21',drawnAt:date,approvedAt:null,deadline:null};
             const c=data.halloweenCoins ||= {stampCost:null,entries:[],loginDays:{}};

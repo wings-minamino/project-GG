@@ -65,6 +65,45 @@ async function call(body,token){if(body.action==='login'&&body.number!==undefine
   assert.equal((await call({action:'change_password',targetRole:'admin',currentPassword:testPassword,password:'aaaaaaaaaaaaaaaa'},student)).status,403);
   assert.equal((await call({action:'change_password',targetRole:'admin',currentPassword:'wrong',password:'aaaaaaaaaaaaaaaa'},admin)).status,401);
   console.log('PASS: number-only student login, admin password required, legacy sessions revoked, student response allowlist, private prize history, password change permissions');
+  {
+  // Mission edits are atomic template changes, independent of already-issued rewards.
+  const beforeMissionTests=structuredClone(row);
+  row.data.dailyPullLimit=0;
+  row.data.draws=[{id:'old-draw',studentId:'s1',missionId:'m1',missionText:'課題',status:'承認済み',value:1,drawnAt:'2026-09-01',approvedAt:'2026-09-01'}];
+  row.data.testMissions=[{id:'special-edit',text:'特別課題',deadline:'2026-10-31',stampReward:2}];
+  row.data.hiddenMissions=[{id:'hidden-edit',name:'隠し課題',conditionType:'monthly_count',conditionValue:99,stampReward:3}];
+  const edit={action:'edit_mission',kind:'normal',id:'m1',text:'  新しい課題  ',stampReward:4,expected:{text:'課題',stampReward:1}};
+  assert.equal((await call({...edit,requestId:'edit-forbidden'},student)).status,403);
+  for(const invalid of [0,-1,1.5,'2',Number.MAX_SAFE_INTEGER+1]){
+    assert.equal((await call({...edit,stampReward:invalid,requestId:'invalid-'+invalid},admin)).status,400);
+  }
+  for(const invalid of ['','  ','x'.repeat(2001)])assert.equal((await call({...edit,text:invalid,requestId:'invalid-text-'+invalid.length},admin)).status,400);
+  assert.equal((await call({...edit,kind:'__proto__',requestId:'invalid-kind'},admin)).status,400);
+  assert.equal((await call({...edit,id:'deleted',requestId:'missing-edit'},admin)).status,404);
+  assert.equal((await call({...edit,expected:{text:'古い内容',stampReward:1},requestId:'stale-edit'},admin)).status,409);
+  collide=true;
+  const edited=await call({...edit,requestId:'edit-success'},admin);
+  assert.equal(edited.status,200);
+  assert.equal(row.data.rankPrizes['1'],'別端末の景品','CAS retry must retain concurrent unrelated changes');
+  assert.equal(row.data.missions[0].text,'新しい課題');assert.equal(row.data.missions[0].stampReward,4);
+  assert.equal(row.data.missions[0].deadlineDays,3);
+  assert.deepEqual(row.data.draws[0],{id:'old-draw',studentId:'s1',missionId:'m1',missionText:'課題',status:'承認済み',value:1,drawnAt:'2026-09-01',approvedAt:'2026-09-01'});
+  const editVersion=row.version;
+  assert.equal((await call({...edit,requestId:'edit-success'},admin)).status,200);
+  assert.equal(row.version,editVersion,'retries must not save twice');
+  assert.equal((await call({...edit,requestId:'edit-conflict'},admin)).status,409);
+  const updatedDraw=await call({action:'draw',requestId:'new-reward-draw'},student);
+  assert.equal(updatedDraw.result.value,4);assert.equal(updatedDraw.result.missionText,'新しい課題');
+  assert.equal((await call({action:'get'},admin)).data.missions[0].stampReward,4,'reload must retain edited reward');
+  assert.equal((await call({...edit,kind:'special',id:'special-edit',text:'新しい特別課題',stampReward:5,expected:{text:'特別課題',stampReward:2},requestId:'special-edit'},admin)).status,200);
+  assert.equal(row.data.testMissions[0].deadline,'2026-10-31');assert.equal(row.data.testMissions[0].stampReward,5);
+  assert.equal((await call({...edit,kind:'hidden',id:'hidden-edit',text:'新しい隠し課題',stampReward:6,expected:{text:'隠し課題',stampReward:3},requestId:'hidden-edit'},admin)).status,200);
+  assert.equal(row.data.hiddenMissions[0].name,'新しい隠し課題');assert.equal(row.data.hiddenMissions[0].conditionValue,99);
+  assert.equal(row.data.draws[0].value,1);assert.equal(row.data.draws[1].value,4);
+  row=beforeMissionTests;
+  console.log('PASS: mission edit authorization, validation, atomic retries, conflict protection, normal/special/hidden edits, reload, future draw rewards and preserved issued rewards');
+  }
+
   const currentDate=new Date(Date.now()+9*3600000).toISOString().slice(0,10);
   const expiredFixtures=[
     {id:'expired-active',studentId:'s1',status:'進行中',deadline:'2000-01-01'},

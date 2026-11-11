@@ -107,3 +107,13 @@ The approved autumn theme is enabled automatically from November 1 at 00:00 thro
 Artwork lives in `assets/november/`. The hero WebP is generated illustration with real UI text layered on top. Coin counts and progress always use the existing configured exchange cost and current student balance. The November visual period does not change the November 25 coin campaign deadline.
 
 Validation: `node tests/portals.test.cjs` checks both portal CSP hashes and the November start/end boundaries in JST, including exclusion of admin and other years. Run `python scripts/update-csp.py` after changes to generate the teacher entrypoint and refresh hashes.
+
+## 2026-11-11 ミッション編集
+
+管理画面「ミッション管理」の通常・特別・隠しミッションに「編集」を追加。内容（隠しミッションは名前）とシール枚数を変更し、「保存」で共有データに反映する。「キャンセル」は変更を破棄。入力途中の内容は定期同期や保存失敗では消さない。
+
+管理者専用 `edit_mission` は編集開始時の内容・報酬を照合し、同じミッションへの競合や削除済みの対象を拒否する。シール枚数は1以上の安全な整数、内容は空白のみを除く1〜2000文字。ID・期限・対象学年・隠しミッションの条件は維持する。通常ミッションの未設定報酬は従来どおり1枚として扱う。
+
+通常ガチャと講師からの送信は、その時点の `stampReward` を配布履歴の `value` に保存する。編集は今後引く・送るミッション、隠しミッションの今後の達成分に反映し、配布済みの内容・報酬や獲得済みのシールは変更しない。
+
+検証: `node --test tests/*.test.cjs`。ミッション編集の権限、入力検証、同時更新、再試行、保存・再取得、各種類の編集、通常ガチャ・講師送信の報酬、配布済み報酬の保持を含む。
