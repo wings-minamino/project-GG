@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-YJ4tLc2DwP2k7AOLILgdIO2nf3rjYy44p5k0QKBFU0Q='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-wlf9wfImAuiEGXLMwsbTgxWbgWkilV/5u0HZbntjkyU='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プロジェクトGG 講師用</title>
@@ -603,10 +603,30 @@ function isRankingEligible(student) {
   return student.id !== 'sirxz3gy';
 }
 function computeRanking(draws, students, month) {
-  return students.filter(isRankingEligible).map(s => ({
-    ...s,
-    count: stampsForStudentMonth(draws, s.id, month)
+  const totals = new Map();
+  for (const draw of draws) {
+    if (draw.status === "承認済み" && monthKey(draw.approvedAt) === month) {
+      totals.set(draw.studentId, (totals.get(draw.studentId) || 0) + (draw.value || 1));
+    }
+  }
+  const ranking = students.filter(isRankingEligible).map(student => ({
+    ...student,
+    count: totals.get(student.id) || 0
   })).sort((a, b) => b.count - a.count);
+  ranking.forEach((student, index) => {
+    const previous = ranking[index - 1];
+    if (student.count <= 0) student.rank = null;
+    else if (previous && previous.count === student.count) student.rank = previous.rank;
+    else student.rank = index + 1;
+  });
+  return ranking;
+}
+const RANK_PRIZE_MIN_PARTICIPANTS = 20;
+function rankPrizeEligibility(ranking, month) {
+  // The participation rule starts with the November 2026 award month.
+  if (month < '2026-11') return null;
+  const participants = ranking.filter(student => student.count > 0).length;
+  return {participants, unlocked: participants >= RANK_PRIZE_MIN_PARTICIPANTS};
 }
 // Preserve October balances while extending the existing coin campaign through November 25 (JST).
 const COIN_START='2026-10-01',COIN_END='2026-11-25';
@@ -628,20 +648,21 @@ function coinSpentForMonth(draws,coins,studentId,month){
   const spent=(coins.entries||[]).filter(e=>e.studentId===studentId&&e.source==='exchange').reduce((n,e)=>n+e.stampCost,0);
   return Math.min(current,Math.max(0,spent-before));
 }
+function computeRankAwards(ranking, rankPrizes, eligibility) {
+  const earned = [];
+  if (eligibility?.unlocked === false) return earned;
+  for (const student of ranking) {
+    if (student.rank === null || student.rank > 3) break;
+    const ref = String(student.rank);
+    if (rankPrizes[ref]?.trim()) {
+      earned.push({studentId: student.id, type: 'rank', ref, label: `${ref}位: ${rankPrizes[ref]}`});
+    }
+  }
+  return earned;
+}
 function computeEarnedPrizes(draws, students, rankPrizes, milestonePrizes, month) {
   const ranking = computeRanking(draws, students, month);
-  const earned = [];
-  ranking.slice(0, 3).forEach((s, idx) => {
-    const rankLabel = String(idx + 1);
-    if (s.count > 0 && rankPrizes[rankLabel] && rankPrizes[rankLabel].trim()) {
-      earned.push({
-        studentId: s.id,
-        type: "rank",
-        ref: rankLabel,
-        label: `${rankLabel}位: ${rankPrizes[rankLabel]}`
-      });
-    }
-  });
+  const earned = computeRankAwards(ranking, rankPrizes, rankPrizeEligibility(ranking, month));
   students.forEach(s => {
     const count = milestoneStampsForStudentMonth(draws, s.id, month);
     milestonePrizes.forEach(mp => {
@@ -1336,6 +1357,16 @@ function GachaMissionApp() {
   const myMilestoneStampsThisMonth = useMemo(() => currentStudentId ? milestoneStampsForStudentMonth(draws,currentStudentId,studentMonth) : 0,[draws,currentStudentId,studentMonth]);
   const pendingApprovals = useMemo(() => draws.filter(d => d.status === "承認待ち").sort((a, b) => a.drawnAt.localeCompare(b.drawnAt)), [draws]);
   const ranking = useMemo(() => computeRanking(draws, students, rankMonth), [draws, students, rankMonth]);
+  const currentPrizeMonth = currentMonthKey();
+  const currentPrizeEligibility = useMemo(() => {
+    const list = rankMonth === currentPrizeMonth ? ranking : computeRanking(draws, students, currentPrizeMonth);
+    return rankPrizeEligibility(list, currentPrizeMonth);
+  }, [ranking, rankMonth, currentPrizeMonth, draws, students]);
+  function prizeEligibilityForMonth(month) {
+    if (month === currentPrizeMonth) return currentPrizeEligibility;
+    const history = rankPrizeHistory[month];
+    return history ? history.eligibility : rankPrizeEligibility([], month);
+  }
   const issueGradeStudents = useMemo(() => studentsInGrades(students, issueGrades), [students, issueGrades]);
   const issueRecipients = useMemo(() => {
     const selected = new Set(selectedStudentIds);
@@ -1506,6 +1537,7 @@ function GachaMissionApp() {
     myStampsThisMonth: myStampsThisMonth,
     myMilestoneStampsThisMonth,
     milestonePrizes: milestonePrizes,
+    prizeEligibility: prizeEligibilityForMonth(studentMonth),
     rankPrizes: studentMonth===rankPrizeMonth&&studentMonth===currentMonthKey()?rankPrizes:(rankPrizeHistory[studentMonth]?.prizes||{}),
     myEarnedThisMonth: myEarnedThisMonth,
     prizeClaims:prizeClaims,
@@ -1552,6 +1584,9 @@ function GachaMissionApp() {
     approveDraw: approveDraw,
     rejectDraw: rejectDraw,
     ranking: ranking,
+    rankingPrizeNames: rankMonth===currentPrizeMonth ? rankPrizes : (rankPrizeHistory[rankMonth]?.prizes || {}),
+    rankingPrizeEligibility: prizeEligibilityForMonth(rankMonth),
+    currentPrizeEligibility,
     rankMonth: rankMonth,
     setRankMonth: setRankMonth,
     rankPrizes: rankPrizes,
@@ -1659,14 +1694,6 @@ function GachaMissionApp() {
      saveError && React.createElement('button',{disabled:syncBusy,onClick:()=>cloud.current.pending?saveCloud():refreshCloud(),style:{marginLeft:12}},'再試行')));
 
 }
-function studentMonthlyRanking(draws,students,month) {
-  const list=computeRanking(draws,students,month);
-  let rank=0;
-  return list.map((student,index)=>{
-    if(index===0||student.count!==list[index-1].count)rank=index+1;
-    return {...student,rank:student.count>0?rank:null};
-  });
-}
 function RankingName({name,self=false,maxFontSize=16,style={}}) {
   const box=useRef(null),label=useRef(null);
   React.useLayoutEffect(()=>{
@@ -1741,11 +1768,12 @@ function RankSettingsPanel({rules,ranks,history,students,onAction}) {
 }
 
 function StudentRankingView({rankPanel,draws,students,currentStudentId,month,isMobile}) {
-  const list=useMemo(()=>studentMonthlyRanking(draws,students,month),[draws,students,month]);
+  const list=useMemo(()=>computeRanking(draws,students,month),[draws,students,month]);
   const me=list.find(s=>s.id===currentStudentId);
   const rankingExcluded=!isRankingEligible({id:currentStudentId});
   const myCount=stampsForStudentMonth(draws,currentStudentId,month);
   const maxCount=Math.max(1,...list.map(s=>s.count));
+  const eligibility=rankPrizeEligibility(list,month);
   const card={background:'#fff',border:'1px solid #eadfd8',borderRadius:18,padding:isMobile?20:28};
   return React.createElement('section',{className:'gg-ranking-page'},rankPanel,
     React.createElement('div',{className:'gg-my-rank',style:{...card,background:'#fff3ee',borderColor:'#edc7b9',marginBottom:24}},
@@ -1756,9 +1784,10 @@ function StudentRankingView({rankPanel,draws,students,currentStudentId,month,isM
     React.createElement('div',{className:'gg-ranking-card',style:card},
       React.createElement('h3',{style:{margin:'0 0 8px'}},'今月のランキング'),
       React.createElement('p',{style:{fontSize:13,color:'#666',margin:'0 0 20px'}},'今月承認されたスタンプの合計です。同じ数は同じ順位になります。'),
+      eligibility&&React.createElement('p',{style:{fontSize:14}},eligibility.unlocked?'今月のランキング景品が解禁されました。':'今月シールを1枚以上獲得した生徒が20人に達すると、ランキング景品が解禁されます。'),
       list.length===0?React.createElement('p',null,'まだランキングはありません。'):React.createElement('ol',{style:{listStyle:'none',padding:0,margin:0}},list.map(s=>{
         const self=s.id===currentStudentId;
-        return React.createElement('li',{key:s.id,className:self?'gg-ranking-row gg-ranking-self':'gg-ranking-row',style:{padding:'14px 12px',marginBottom:8,borderRadius:12,background:self?'#fff0e8':'#f8f7f5',border:self?'1px solid #dcaa91':'1px solid transparent'}},
+        return React.createElement('li',{key:s.id,'data-rank':s.rank,className:self?'gg-ranking-row gg-ranking-self':'gg-ranking-row',style:{padding:'14px 12px',marginBottom:8,borderRadius:12,background:self?'#fff0e8':'#f8f7f5',border:self?'1px solid #dcaa91':'1px solid transparent'}},
           React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:10,marginBottom:10}},
             React.createElement('strong',{className:'gg-rank-medal',style:{minWidth:38,color:self?'#a52b2b':'#555'}},React.createElement('span',{className:'gg-rank-number'},s.rank?s.rank+'位':'—')),
             React.createElement(RankingName,{name:s.name,self}),
@@ -2047,7 +2076,7 @@ function HalloweenCoinAdmin({coins,students,onAction,distribution=false}) {
   if(distribution)return h('section',{className:'gg-coin-panel'},h(CoinCommunityGoal,{coins,admin:true}),h('h3',null,'お菓子ガチャコイン受け渡し'),
     !(coins.entries||[]).length?h('p',null,'交換・当選はまだありません。'):h('ul',{className:'gg-coin-deliveries'},...[...(coins.entries||[])].sort((a,b)=>Number(!!a.deliveredAt)-Number(!!b.deliveredAt)||a.createdAt.localeCompare(b.createdAt)).map(e=>h('li',{key:e.id},h('span',null,`${students.find(s=>s.id===e.studentId)?.name||'登録のない生徒'} · 1枚 · ${e.source==='gacha'?'ガチャ当選':`スタンプ${e.stampCost}個で交換`}`),h('button',{disabled:busy||!!e.deliveredAt,onClick:()=>deliver(e.id)},e.deliveredAt?'渡し済み ✓':'コイン1枚を渡した')))));
   return h('section',{className:'gg-coin-panel'},h(CoinCommunityGoal,{coins,admin:true}),h('h3',null,'11月25日まで：お菓子ガチャコイン'),
-    h('p',null,'11月25日まで通常スタンプ景品はコイン交換です。10月の未使用分も引き継ぎます。ランキング景品は従来どおりです。'),
+    h('p',null,'11月25日まで通常スタンプ景品はコイン交換です。10月の未使用分も引き継ぎます。'),
     h('form',{onSubmit:save},h('label',null,'コイン1枚に必要なスタンプ数 ',h('input',{type:'number',min:1,max:10000,step:1,required:true,value:cost,onChange:e=>setCost(e.target.value),style:{width:90,padding:8}})),h('button',{type:'submit',disabled:busy||!coinSeason()},'保存')),
     h('p',null,'未設定の間は交換できません。変更後の条件は次の交換から適用され、使用済みスタンプ数は変更しません。交換は11月25日23:59までです（日本時間）。'),
     h('p',null,'ガチャ当選：基本1％。連続ログイン1日ごとに＋0.5ポイント、最大5％。日本時間で判定し、途切れると1％に戻ります。確率は生徒には非表示です。当選も1日のガチャ回数に含まれます。'),
@@ -2370,6 +2399,7 @@ function StudentPrizeView({
   myMilestoneStampsThisMonth,
   milestonePrizes,
   rankPrizes,
+  prizeEligibility,
   myEarnedThisMonth,
   prizeClaims,
   claimPrize,
@@ -2448,7 +2478,8 @@ function StudentPrizeView({
     style: styles.sectionTitle
   }, React.createElement("span",{className:"gg-heading-chunk"},"ランキング景品")," ",React.createElement("span",{className:"gg-heading-chunk"},"（月間トップ3）"))), /*#__PURE__*/React.createElement("div", {
     style: styles.missionList
-  }, ["1", "2", "3"].map(rank => /*#__PURE__*/React.createElement("div", {
+  }, prizeEligibility?.unlocked === false ? React.createElement('p',{style:styles.emptyBox},
+    studentMonth < currentMonthKey() ? 'この月は参加者が20人未満だったため、ランキング景品はありません。' : 'その月にシールを1枚以上獲得した生徒が20人に達すると、ランキング景品が解禁されます。') : ["1", "2", "3"].map(rank => /*#__PURE__*/React.createElement("div", {
     key: rank,
     className:"gg-prize-card",
       style: styles.missionCard
@@ -3058,7 +3089,8 @@ function AdminView(props) {
     }
   }, React.createElement("span",{className:"gg-heading-chunk"},"ランキング景品")," ",React.createElement("span",{className:"gg-heading-chunk"},"（月間トップ3）")), /*#__PURE__*/React.createElement("div", {
     style: styles.rankPrizeForm
-  }, React.createElement("p",{style:{fontSize:13}},formatMonth(currentMonthKey())+"の景品です。月初に未定へ戻ります。月末の最終設定を翌月の申請に使用します。"), ["1", "2", "3"].map(rank => /*#__PURE__*/React.createElement("div", {
+  }, React.createElement("p",{style:{fontSize:13}},formatMonth(currentMonthKey())+"の景品です。月末の最終設定を翌月の申請に使用します。"),
+    props.currentPrizeEligibility && React.createElement('p', {style:styles.hintText}, rankPrizeAdminStatus(props.currentPrizeEligibility)), ["1", "2", "3"].map(rank => /*#__PURE__*/React.createElement("div", {
     key: rank,
     style: styles.rankPrizeRow
   }, /*#__PURE__*/React.createElement("span", {
@@ -3443,15 +3475,15 @@ function AdminView(props) {
     onClick: () => setRankMonth(shiftMonth(rankMonth, 1))
   }, "\u2192")), /*#__PURE__*/React.createElement("div", {
     style: styles.rankList
-  }, ranking.map((r, i) => /*#__PURE__*/React.createElement("div", {
+  }, props.rankingPrizeEligibility && React.createElement('p',{style:styles.hintText},rankPrizeAdminStatus(props.rankingPrizeEligibility)), ranking.map(r => /*#__PURE__*/React.createElement("div", {
     key: r.id,
     style: styles.rankRow
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       ...styles.rankNum,
-      ...(i < 3 ? styles.rankNumTop : {})
+      ...(r.rank !== null && r.rank <= 3 ? styles.rankNumTop : {})
     }
-  }, i + 1), React.createElement(RankingName,{name:r.name,maxFontSize:13.5,style:{...styles.rankName,flex:'0 0 70px'}}), /*#__PURE__*/React.createElement("div", {
+  }, r.rank ?? "—"), React.createElement(RankingName,{name:r.name,maxFontSize:13.5,style:{...styles.rankName,flex:'0 0 70px'}}), /*#__PURE__*/React.createElement("div", {
     style: styles.rankBarTrack
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3460,9 +3492,12 @@ function AdminView(props) {
     }
   })), /*#__PURE__*/React.createElement("div", {
     style: styles.rankCount
-  }, r.count, "\u500B"), i < 3 && r.count > 0 && rankPrizes[String(i + 1)] && rankPrizes[String(i + 1)].trim() && /*#__PURE__*/React.createElement("div", {
+  }, r.count, "\u500B"), props.rankingPrizeEligibility?.unlocked !== false && r.rank !== null && r.rank <= 3 && props.rankingPrizeNames[r.rank]?.trim() && /*#__PURE__*/React.createElement("div", {
     style: styles.rankPrizeTag
-  }, rankPrizes[String(i + 1)]))))));
+  }, props.rankingPrizeNames[r.rank]))))));
+}
+function rankPrizeAdminStatus(eligibility) {
+  return `シールを1枚以上獲得した生徒 ${eligibility.participants}人 ／ ${RANK_PRIZE_MIN_PARTICIPANTS}人で景品解禁${eligibility.unlocked ? '（達成）' : '（未達成）'}`;
 }
 function MissionEditor({kind,mission,onAction,onDelete,children}) {
   const h=React.createElement;
@@ -3621,8 +3656,8 @@ const css = `
   .halloween-theme .gg-ranking-row { background:#fffaf2!important; border:1px solid #eddbc4!important; }
   .halloween-theme .gg-ranking-self { background:#ffebc9!important; border:1px solid #e99835!important; }
   .halloween-theme .gg-rank-medal { background:url('../assets/halloween/medal.svg') center/contain no-repeat; min-width:48px!important; min-height:49px; display:inline-flex; align-items:center; justify-content:center; color:#4e2448!important; font-size:15px; padding-top:7px; }
-  .halloween-theme .gg-ranking-row:nth-child(2) .gg-rank-medal { filter:hue-rotate(220deg) saturate(.4); }
-  .halloween-theme .gg-ranking-row:nth-child(n+4) .gg-rank-medal { filter:hue-rotate(230deg) saturate(.5); }
+  .halloween-theme .gg-ranking-row[data-rank="2"] .gg-rank-medal { filter:hue-rotate(220deg) saturate(.4); }
+  .halloween-theme .gg-ranking-row:not([data-rank="1"]):not([data-rank="2"]):not([data-rank="3"]) .gg-rank-medal { filter:hue-rotate(230deg) saturate(.5); }
   .halloween-theme .gg-ranking-bar { background:linear-gradient(90deg,#6735a5,#a15cd7)!important; }
   .halloween-theme .gg-ranking-own-bar { background:linear-gradient(90deg,#ff9828,#ef6815)!important; }
   .halloween-theme .gg-prize-page>button { background:#fff1d8!important; color:#462750!important; }
@@ -3665,7 +3700,7 @@ const css = `
   .halloween-theme .gg-rank-medal::before { content:''; position:absolute; inset:0; z-index:-1; opacity:.55; }
   .halloween-theme .gg-ranking-row { border-radius:16px!important; }
   .halloween-theme .gg-ranking-row>div:first-child { align-items:center!important; }
-  .halloween-theme .gg-ranking-row:nth-child(3) .gg-rank-medal { filter:sepia(.3); }
+  .halloween-theme .gg-ranking-row[data-rank="3"] .gg-rank-medal { filter:sepia(.3); }
   .halloween-theme .gg-mission-page::after,.halloween-theme .gg-prize-page::after,.halloween-theme .gg-ranking-page::after { content:''; display:block; width:min(100%,370px); aspect-ratio:610/555; margin:24px auto 0; pointer-events:none; }
   @media(max-width:400px) {
     .halloween-theme .gg-prize-card { padding-left:78px!important; }

@@ -254,6 +254,31 @@ async function call(body,token){if(body.action==='login'&&body.number!==undefine
   assert.ok(row.data.prizeClaims['s1|2026-09|milestone|deadline-ok']);
   assert.equal(vm.runInContext("milestoneClaimOpen('2026-12','2027-01-10')",ctx),true);
   assert.equal(vm.runInContext("milestoneClaimOpen('2026-12','2027-01-11')",ctx),false);
+  // Close November once with 19 participants and once with 20, then claim the frozen award.
+  {
+    const baseline=structuredClone(row), previousClock=clock;
+    for(const count of [19,20]) {
+      clock=Date.parse('2026-11-30T14:59:59Z');
+      row=structuredClone(baseline);
+      row.data.rankPrizeMonth='2026-11';
+      row.data.rankPrizes={'1':'一等','2':'二等','3':'三等'};
+      row.data.students=[{id:'s1',number:'A',name:'A'},{id:'s2',number:'B',name:'B'},
+        ...Array.from({length:18},(_,i)=>({id:'extra'+i,number:'E'+i,name:'追加'+i}))];
+      row.data.draws=row.data.students.slice(0,count).map((s,i)=>({id:'nov-'+i,studentId:s.id,
+        status:'承認済み',approvedAt:'2026-11-29',value:i<2?4:1}));
+      const player=await call({action:'login',number:'B'});
+      assert.equal(player.status,200);
+      assert.deepEqual(player.data.rankPrizes,count===19?{}:row.data.rankPrizes);
+      clock+=1000;
+      const snapshot=(await call({action:'get'},player.token)).data.rankPrizeHistory['2026-11'];
+      assert.equal(snapshot.eligibility.unlocked,count===20);
+      assert.equal(row.data.rankPrizeHistory['2026-11'].eligibility.participants,count);
+      assert.deepEqual(snapshot.earned.map(p=>p.ref),count===19?[]:['1']);
+      const claim=await call({action:'claim_prize',month:'2026-11',type:'rank',ref:'1',requestId:'tied-claim-'+count},player.token);
+      assert.equal(claim.status,count===19?403:200);
+    }
+    row=baseline;clock=previousClock;
+  }
   // Run the actual frontend selection logic: award month is distinct from display month.
   const html=fs.readFileSync(root+'/index.html','utf8');
   const start=html.indexOf('  const myEarnedThisMonth = useMemo(() => {');

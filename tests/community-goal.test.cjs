@@ -1,10 +1,10 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const helper=fs.readFileSync(root+'/supabase/functions/gg-api/helpers.js','utf8');
-const eligible=helper.slice(helper.indexOf('function isRankingEligible('),helper.indexOf('function computeRanking('));
+const eligible=helper.slice(helper.indexOf('function isRankingEligible('),helper.indexOf('// Preserve October balances'));
 const coinsSource=fs.readFileSync(root+'/supabase/functions/gg-api/coins.js','utf8').replace(/^import[^\n]+\n/gm,'').replace(/export \{[^}]+\};/,'');
 const api=fs.readFileSync(root+'/supabase/functions/gg-api/index.js','utf8');
-const ctx=vm.createContext({structuredClone,Date,todayStr:()=> '2026-10-29',fail:()=>{throw Error('unauthorized');}});
+const ctx=vm.createContext({structuredClone,Date,monthKey:s=>s?.slice(0,7),rewardMonth:()=> '2026-10',todayStr:()=> '2026-10-29',fail:()=>{throw Error('unauthorized');}});
 vm.runInContext(eligible+coinsSource+api.slice(api.indexOf('function view('),api.indexOf('export async function handler(')),ctx);
 const data={students:[...Array.from({length:26},(_,i)=>({id:'s'+i,name:i===0?'test':'生徒',number:String(i+2)})),{id:'sirxz3gy',name:'renamed verification',number:'999'}],draws:[],prizeSuggestions:[],achievements:[],deliveries:{},
   halloweenCoins:{stampCost:5,loginDays:{s0:{date:'2026-10-29',streak:2}},entries:Array.from({length:24},(_,i)=>({id:'e'+i,studentId:'s'+i,source:i%2?'gacha':'exchange',deliveredAt:i%2?null:'2026-10-29'}))}};

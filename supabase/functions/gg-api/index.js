@@ -1,6 +1,6 @@
 import {photoAction} from './photos.js';
 import {coinSeason,coinState,coinCommunityGoal,coinSummary,recordCoinVisit,coinChance} from './coins.js';
-import {coinMilestonesPaused,settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
+import {computeRanking, rankPrizeEligibility, computeRankAwards, coinMilestonesPaused,settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade} from './helpers.js';
 
 // Bearer-token authentication, no ambient cookies: also supports VS Code Live Server.
 const globalHeaders = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type, authorization','Access-Control-Allow-Methods':'POST, OPTIONS','Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
@@ -45,10 +45,14 @@ function closeRankMonths(data,month=rewardMonth()) {
   data.rankPrizeMonth=data.rankPrizeMonth||month;
   while(data.rankPrizeMonth<month) {
     const old=data.rankPrizeMonth,prizes=structuredClone(data.rankPrizes);
-    if(!data.rankPrizeHistory[old])data.rankPrizeHistory[old]={
-      prizes,earned:computeEarnedPrizes(data.draws,data.students,prizes,[],old),
-      finalizedAt:new Date().toISOString()
-    };
+    if(!data.rankPrizeHistory[old]) {
+      const ranking = computeRanking(data.draws, data.students, old);
+      const eligibility = rankPrizeEligibility(ranking, old);
+      data.rankPrizeHistory[old] = {
+        prizes, eligibility, earned: computeRankAwards(ranking, prizes, eligibility),
+        finalizedAt: new Date().toISOString()
+      };
+    }
     const [y,m]=old.split('-').map(Number);
     data.rankPrizeMonth=m===12?(y+1)+'-01':y+'-'+String(m+1).padStart(2,'0');
     data.rankPrizes={'1':'','2':'','3':''};
@@ -105,7 +109,15 @@ function view(row,session) {
   d.prizeClaims=Object.fromEntries(Object.entries(d.prizeClaims||{}).filter(([,claim])=>claim.studentId===id));
   d.studentRanks={[id]:d.studentRanks?.[id]||0};
   d.rankHistory=Object.fromEntries(Object.entries(d.rankHistory||{}).map(([month,h])=>[month,{...h,results:h.results?.[id]?{[id]:h.results[id]}:{}}]));
-  d.rankPrizeHistory=Object.fromEntries(Object.entries(d.rankPrizeHistory||{}).map(([month,h])=>[month,{prizes:h.prizes,finalizedAt:h.finalizedAt,earned:(h.earned||[]).filter(e=>e.studentId===id)}]));
+  const prizeMonth = d.rankPrizeMonth || rewardMonth();
+  const eligibility = rankPrizeEligibility(computeRanking(d.draws, d.students, prizeMonth), prizeMonth);
+  if (eligibility?.unlocked === false) d.rankPrizes = {};
+  d.rankPrizeHistory = Object.fromEntries(Object.entries(d.rankPrizeHistory || {}).map(([month, history]) => [month, {
+    prizes: history.eligibility?.unlocked === false ? {} : history.prizes,
+    eligibility: history.eligibility ? {unlocked: history.eligibility.unlocked} : null,
+    finalizedAt: history.finalizedAt,
+    earned: (history.earned || []).filter(award => award.studentId === id)
+  }]));
   d.halloweenCoins={stampCost:coinState(row.data).stampCost,entries:coinState(row.data).entries.filter(e=>e.studentId===id),communityGoal};
   d.hiddenMissions=[]; d.testMissions=[];
   return {version:row.version,data:d};

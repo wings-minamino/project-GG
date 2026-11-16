@@ -147,10 +147,30 @@ function isRankingEligible(student) {
   return student.id !== 'sirxz3gy';
 }
 function computeRanking(draws, students, month) {
-  return students.filter(isRankingEligible).map(s => ({
-    ...s,
-    count: stampsForStudentMonth(draws, s.id, month)
+  const totals = new Map();
+  for (const draw of draws) {
+    if (draw.status === "承認済み" && monthKey(draw.approvedAt) === month) {
+      totals.set(draw.studentId, (totals.get(draw.studentId) || 0) + (draw.value || 1));
+    }
+  }
+  const ranking = students.filter(isRankingEligible).map(student => ({
+    ...student,
+    count: totals.get(student.id) || 0
   })).sort((a, b) => b.count - a.count);
+  ranking.forEach((student, index) => {
+    const previous = ranking[index - 1];
+    if (student.count <= 0) student.rank = null;
+    else if (previous && previous.count === student.count) student.rank = previous.rank;
+    else student.rank = index + 1;
+  });
+  return ranking;
+}
+const RANK_PRIZE_MIN_PARTICIPANTS = 20;
+function rankPrizeEligibility(ranking, month) {
+  // The participation rule starts with the November 2026 award month.
+  if (month < '2026-11') return null;
+  const participants = ranking.filter(student => student.count > 0).length;
+  return {participants, unlocked: participants >= RANK_PRIZE_MIN_PARTICIPANTS};
 }
 // Preserve October balances while extending the existing coin campaign through November 25 (JST).
 const COIN_START='2026-10-01',COIN_END='2026-11-25';
@@ -172,20 +192,21 @@ function coinSpentForMonth(draws,coins,studentId,month){
   const spent=(coins.entries||[]).filter(e=>e.studentId===studentId&&e.source==='exchange').reduce((n,e)=>n+e.stampCost,0);
   return Math.min(current,Math.max(0,spent-before));
 }
+function computeRankAwards(ranking, rankPrizes, eligibility) {
+  const earned = [];
+  if (eligibility?.unlocked === false) return earned;
+  for (const student of ranking) {
+    if (student.rank === null || student.rank > 3) break;
+    const ref = String(student.rank);
+    if (rankPrizes[ref]?.trim()) {
+      earned.push({studentId: student.id, type: 'rank', ref, label: `${ref}位: ${rankPrizes[ref]}`});
+    }
+  }
+  return earned;
+}
 function computeEarnedPrizes(draws, students, rankPrizes, milestonePrizes, month) {
   const ranking = computeRanking(draws, students, month);
-  const earned = [];
-  ranking.slice(0, 3).forEach((s, idx) => {
-    const rankLabel = String(idx + 1);
-    if (s.count > 0 && rankPrizes[rankLabel] && rankPrizes[rankLabel].trim()) {
-      earned.push({
-        studentId: s.id,
-        type: "rank",
-        ref: rankLabel,
-        label: `${rankLabel}位: ${rankPrizes[rankLabel]}`
-      });
-    }
-  });
+  const earned = computeRankAwards(ranking, rankPrizes, rankPrizeEligibility(ranking, month));
   students.forEach(s => {
     const count = milestoneStampsForStudentMonth(draws, s.id, month);
     milestonePrizes.forEach(mp => {
@@ -238,5 +259,5 @@ function settleStudentRanks(data,month) {
   }
   return data;
 }
-export { isRankingEligible, COIN_START, COIN_END, coinSeason, coinStampTotal, coinMilestonesPaused, nextStudentRank, settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade };
+export { computeRanking, rankPrizeEligibility, computeRankAwards, isRankingEligible, COIN_START, COIN_END, coinSeason, coinStampTotal, coinMilestonesPaused, nextStudentRank, settleStudentRanks, milestoneClaimOpen, computeEarnedPrizes, deliveryKey, deriveAdminPassword, todayStr, addDays, randomCapsuleColor, isMissionEligible, computePeriodKeysMet, currentAcademicYear, promoteStudentGrade };
 
