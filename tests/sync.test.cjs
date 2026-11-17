@@ -100,6 +100,23 @@ async function call(body,token){if(body.action==='login'&&body.number!==undefine
   assert.equal((await call({...edit,kind:'hidden',id:'hidden-edit',text:'新しい隠し課題',stampReward:6,expected:{text:'隠し課題',stampReward:3},requestId:'hidden-edit'},admin)).status,200);
   assert.equal(row.data.hiddenMissions[0].name,'新しい隠し課題');assert.equal(row.data.hiddenMissions[0].conditionValue,99);
   assert.equal(row.data.draws[0].value,1);assert.equal(row.data.draws[1].value,4);
+  const setDays={...edit,text:'新しい課題',expected:{text:'新しい課題',stampReward:4,deadline:3},deadlineDays:null,requestId:'clear-days'};
+  assert.equal((await call(setDays,admin)).status,200);
+  assert.equal(row.data.missions[0].deadlineDays,null);
+  assert.equal((await call({...setDays,requestId:'conflicting-days',deadlineDays:6},admin)).status,409);
+  const noDeadline=await call({action:'draw',requestId:'draw-no-deadline'},student);
+  assert.equal(noDeadline.result.deadline,null);
+  assert.equal((await call({action:'report',id:noDeadline.result.id,requestId:'report-no-deadline'},student)).status,200);
+  const restoredDays={...setDays,expected:{...setDays.expected,deadline:null},deadlineDays:5,requestId:'new-days'};
+  assert.equal((await call(restoredDays,admin)).status,200);
+  const dated=await call({action:'draw',requestId:'draw-with-deadline'},student);
+  assert.equal(dated.result.deadline,'2026-09-11');
+  assert.equal(row.data.draws.find(d=>d.id===noDeadline.result.id).deadline,null);
+  const setDate={action:'edit_mission',kind:'special',id:'special-edit',text:'新しい特別課題',stampReward:5,
+    expected:{text:'新しい特別課題',stampReward:5,deadline:'2026-10-31'},deadline:null,requestId:'clear-date'};
+  assert.equal((await call({...setDate,deadline:'2026-02-30',requestId:'bad-date'},admin)).status,400);
+  assert.equal((await call(setDate,admin)).status,200);
+  assert.equal(row.data.testMissions[0].deadline,null);
   row=beforeMissionTests;
   console.log('PASS: mission edit authorization, validation, atomic retries, conflict protection, normal/special/hidden edits, reload, future draw rewards and preserved issued rewards');
   }
@@ -110,12 +127,14 @@ async function call(body,token){if(body.action==='login'&&body.number!==undefine
     row.data.students.push({id:'s3',name:'Three',number:'C',grade:'中2'});
     const second=(await call({action:'login',number:'B'})).token;
     const third=(await call({action:'login',number:'C'})).token;
-    const create={action:'create_gacha_mission',requestId:'personal-create',text:'個別の復習',deadlineDays:3,
+    const create={action:'create_gacha_mission',requestId:'personal-create',text:'個別の復習',deadlineDays:null,stampReward:3,
       audience:{targetGroup:null,targetStudentIds:['s1','s3']}};
     assert.equal((await call(create,student)).status,403);
     for (const ids of [[],['missing'],['s1','s1'],'s1']) {
       assert.equal((await call({...create,audience:{targetGroup:null,targetStudentIds:ids}},admin)).status,400);
     }
+    assert.equal((await call({...create,deadlineDays:0},admin)).status,400);
+    assert.equal((await call({...create,stampReward:0},admin)).status,400);
     const created=await call(create,admin);
     assert.equal(created.status,200);
     const id=created.result.id;
@@ -131,9 +150,10 @@ async function call(body,token){if(body.action==='login'&&body.number!==undefine
     privateOnly.missions=privateOnly.missions.filter(m=>m.id===id);
     assert.equal((await call({action:'save',version:row.version,requestId:'private-only',data:privateOnly},admin)).status,200);
     assert.equal((await call({action:'draw',requestId:'not-selected',studentId:'s1',missionId:id},second)).status,400);
-    assert.equal((await call({action:'draw',requestId:'selected'},student)).result.missionId,id);
+    const selected=(await call({action:'draw',requestId:'selected'},student)).result;
+    assert.equal(selected.missionId,id);assert.equal(selected.value,3);assert.equal(selected.deadline,null);
     const edit={action:'edit_mission',kind:'normal',id,text:'個別の復習',stampReward:1,
-      expected:{text:'個別の復習',stampReward:1,audience:create.audience},audience:{targetGroup:null,targetStudentIds:['s2']},requestId:'move-target'};
+      expected:{text:'個別の復習',stampReward:3,audience:create.audience},audience:{targetGroup:null,targetStudentIds:['s2']},requestId:'move-target'};
     assert.equal((await call(edit,admin)).status,200);
     assert.equal((await call({...edit,requestId:'stale-target',audience:{targetGroup:null,targetStudentIds:null}},admin)).status,409);
     assert.equal((await call({action:'get'},student)).data.missions.length,0);

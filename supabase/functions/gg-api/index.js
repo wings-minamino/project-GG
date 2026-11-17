@@ -77,6 +77,18 @@ function validate(data) {
   if(data.students.some(s=>typeof s.name!=='string'||typeof s.number!=='string') || new Set(data.students.map(s=>s.number)).size!==data.students.length) fail(400,'生徒番号を確認してください');
   if(!data.rankPrizes||!data.deliveries||!Number.isFinite(data.dailyPullLimit)||data.dailyPullLimit<0) fail(400,'設定データを確認してください');
 }
+function validateMissionDays(days) {
+  if (days !== null && (!Number.isSafeInteger(days) || days < 1 || Number.isNaN(new Date(Date.now()+86400000*days).getTime()))) fail(400,'期限は空欄、または1以上の整数で入力してください');
+}
+function validateMissionReward(reward) {
+  if (!Number.isSafeInteger(reward) || reward < 1) fail(400,'シールの枚数は1以上の整数で入力してください');
+}
+function validateMissionDate(date) {
+  if (date === null) return;
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) fail(400,'締切日を確認してください');
+  const time=Date.parse(date+'T00:00:00Z');
+  if (!Number.isFinite(time) || new Date(time).toISOString().slice(0,10)!==date) fail(400,'締切日を確認してください');
+}
 function validateMissionAudience(audience, students) {
   if (!audience || ![null,'elementary','juniorHigh','highSchool'].includes(audience.targetGroup)) fail(400,'ガチャの対象を選んでください');
   const {targetGroup, targetStudentIds} = audience;
@@ -207,10 +219,12 @@ export async function handler(req) {
         if(session.role!=='admin'||!data)fail(403,'管理者のみ操作できます');
         const text=typeof b.text==='string'?b.text.trim():'';
         if(!text||text.length>2000)fail(400,'ミッションの内容を1〜2000文字で入力してください');
-        if(!Number.isSafeInteger(b.deadlineDays)||b.deadlineDays<1||Number.isNaN(new Date(Date.now()+86400000*b.deadlineDays).getTime()))fail(400,'期限の日数を確認してください');
+        validateMissionDays(b.deadlineDays);
+        const stampReward=b.stampReward===undefined ? 1 : b.stampReward;
+        validateMissionReward(stampReward);
         if(data.missions.length>=50000)fail(400,'ミッションの登録上限に達しています');
         const audience=validateMissionAudience(b.audience,data.students);
-        const mission={id:uid(),text,deadlineDays:b.deadlineDays,...audience};
+        const mission={id:uid(),text,deadlineDays:b.deadlineDays,stampReward,...audience};
         data.missions.push(mission);
         result={id:mission.id};
       } else if(b.action==='edit_mission') {
@@ -223,7 +237,15 @@ export async function handler(req) {
         if(!b.expected||b.expected.text!==mission[field]||b.expected.stampReward!==(mission.stampReward||1))fail(409,'このミッションは別の端末で変更されました。編集をキャンセルし、最新の内容で開き直してください');
         const text=typeof b.text==='string'?b.text.trim():'';
         if(!text||text.length>2000)fail(400,'ミッションの内容を1〜2000文字で入力してください');
-        if(!Number.isSafeInteger(b.stampReward)||b.stampReward<1)fail(400,'シールの枚数は1以上の整数で入力してください');
+        validateMissionReward(b.stampReward);
+        if(Object.hasOwn(b,'deadlineDays') || Object.hasOwn(b,'deadline')) {
+          const dateField=b.kind==='normal'?'deadlineDays':'deadline';
+          if(b.kind==='hidden' || !Object.hasOwn(b,dateField) || (Object.hasOwn(b,'deadlineDays') && Object.hasOwn(b,'deadline')))fail(400,'ミッションの期限設定を確認してください');
+          if(b.expected.deadline!==(mission[dateField]||null))fail(409,'期限が別の端末で変更されました。最新の内容で開き直してください');
+          if(b.kind==='normal')validateMissionDays(b.deadlineDays);
+          else validateMissionDate(b.deadline);
+          mission[dateField]=b[dateField];
+        }
         if(Object.hasOwn(b,'audience')) {
           if(b.kind!=='normal')fail(400,'対象生徒は通常ミッションで指定してください');
           const previous=b.expected.audience;
@@ -272,7 +294,8 @@ export async function handler(req) {
         if(!['accept','reject'].includes(b.decision)) fail(400,'採用または見送りを選んでください');
         if(b.decision==='accept') {
           if(typeof b.text!=='string'||!b.text.trim()||b.text.length>500) fail(400,'ミッションは1〜500文字で入力してください');
-          if(!Number.isInteger(b.deadlineDays)||b.deadlineDays<1||b.deadlineDays>365) fail(400,'期限は1〜365日で指定してください');
+          validateMissionDays(b.deadlineDays);
+          if(b.deadlineDays>365) fail(400,'期限は空欄または1〜365日で指定してください');
           if(![null,'elementary','juniorHigh','highSchool'].includes(b.targetGroup)) fail(400,'対象学年を選んでください');
           const mission={id:uid(),text:b.text.trim(),deadlineDays:b.deadlineDays,targetGroup:b.targetGroup,proposalId:proposal.id};
           data.missions.push(mission);proposal.missionId=mission.id;proposal.adoptedText=mission.text;
