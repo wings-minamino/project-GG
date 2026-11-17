@@ -77,6 +77,15 @@ function validate(data) {
   if(data.students.some(s=>typeof s.name!=='string'||typeof s.number!=='string') || new Set(data.students.map(s=>s.number)).size!==data.students.length) fail(400,'生徒番号を確認してください');
   if(!data.rankPrizes||!data.deliveries||!Number.isFinite(data.dailyPullLimit)||data.dailyPullLimit<0) fail(400,'設定データを確認してください');
 }
+function validateMissionAudience(audience, students) {
+  if (!audience || ![null,'elementary','juniorHigh','highSchool'].includes(audience.targetGroup)) fail(400,'ガチャの対象を選んでください');
+  const {targetGroup, targetStudentIds} = audience;
+  if (targetStudentIds === null) return {targetGroup, targetStudentIds:null};
+  if (targetGroup !== null || !Array.isArray(targetStudentIds) || !targetStudentIds.length || targetStudentIds.length > students.length) fail(400,'対象の生徒を1人以上選んでください');
+  const registered = new Set(students.map(s => s.id));
+  if (targetStudentIds.some(id => !registered.has(id)) || new Set(targetStudentIds).size !== targetStudentIds.length) fail(400,'対象の生徒を選び直してください');
+  return {targetGroup:null, targetStudentIds};
+}
 function derived(data) {
   const year=currentAcademicYear();
   if(!Number.isInteger(data.lastPromotionYear)||data.lastPromotionYear<2000) data.lastPromotionYear=year;
@@ -99,7 +108,9 @@ function view(row,session) {
   const allowed=['halloweenCoins','missions','draws','students','rankPrizes','rankPrizeMonth','rankPrizeHistory','rankRules','rankMonth','studentRanks','rankHistory','milestonePrizes','deliveries','prizeClaims','hiddenMissions','testMissions','achievements','prizeSuggestions','missionSuggestions','lastPromotionYear','dailyPullLimit'];
   const d=structuredClone(Object.fromEntries(allowed.filter(k=>Object.hasOwn(row.data,k)).map(k=>[k,row.data[k]]))),id=session.student_id;
   d.missionSuggestions=(d.missionSuggestions||[]).filter(x=>x.studentId===id);
-  if(!d.students.some(s=>s.id===id)) fail(401,'生徒の登録が変更されました。ログインし直してください。');
+  const student=d.students.find(s=>s.id===id);
+  if(!student) fail(401,'生徒の登録が変更されました。ログインし直してください。');
+  d.missions=(d.missions||[]).filter(m=>isMissionEligible(m,student.grade,id)).map(({targetStudentIds,...mission})=>mission);
   d.students=d.students.map(s=>s.id===id?s:{id:s.id,name:s.name,number:'',school:'',grade:''});
   // Ranking needs only other students' approved stamp totals, never their missions or login numbers.
   d.draws=d.draws.filter(x=>x.status==='承認済み'||(x.studentId===id&&!(x.deadline&&x.deadline<todayStr()))).map(x=>x.studentId===id?x:{id:x.id,studentId:x.studentId,status:x.status,approvedAt:x.approvedAt,value:x.value});
@@ -192,6 +203,16 @@ export async function handler(req) {
         validate(b.data);
         // This collection is managed by explicit actions; older clients must not erase it.
         data=derived({...b.data,halloweenCoins:data?.halloweenCoins||{stampCost:null,entries:[],loginDays:{}},draws:[...b.data.draws.filter(d=>!d.coinReward&&!d.photoReward),...(data?.draws||[]).filter(d=>d.coinReward||d.photoReward)],missionSuggestions:data?.missionSuggestions||[],prizeClaims:data?.prizeClaims||{},rankPrizeMonth:data?.rankPrizeMonth||rewardMonth(),rankPrizeHistory:data?.rankPrizeHistory||{},rankRules:data?.rankRules||null,rankMonth:data?.rankMonth||null,studentRanks:data?.studentRanks||{},rankHistory:data?.rankHistory||{}});
+      } else if(b.action==='create_gacha_mission') {
+        if(session.role!=='admin'||!data)fail(403,'管理者のみ操作できます');
+        const text=typeof b.text==='string'?b.text.trim():'';
+        if(!text||text.length>2000)fail(400,'ミッションの内容を1〜2000文字で入力してください');
+        if(!Number.isSafeInteger(b.deadlineDays)||b.deadlineDays<1||Number.isNaN(new Date(Date.now()+86400000*b.deadlineDays).getTime()))fail(400,'期限の日数を確認してください');
+        if(data.missions.length>=50000)fail(400,'ミッションの登録上限に達しています');
+        const audience=validateMissionAudience(b.audience,data.students);
+        const mission={id:uid(),text,deadlineDays:b.deadlineDays,...audience};
+        data.missions.push(mission);
+        result={id:mission.id};
       } else if(b.action==='edit_mission') {
         if(session.role!=='admin'||!data)fail(403,'管理者のみ操作できます');
         if(!['normal','special','hidden'].includes(b.kind)||typeof b.id!=='string')fail(400,'ミッションの種類を確認してください');
@@ -203,6 +224,12 @@ export async function handler(req) {
         const text=typeof b.text==='string'?b.text.trim():'';
         if(!text||text.length>2000)fail(400,'ミッションの内容を1〜2000文字で入力してください');
         if(!Number.isSafeInteger(b.stampReward)||b.stampReward<1)fail(400,'シールの枚数は1以上の整数で入力してください');
+        if(Object.hasOwn(b,'audience')) {
+          if(b.kind!=='normal')fail(400,'対象生徒は通常ミッションで指定してください');
+          const previous=b.expected.audience;
+          if(!previous||previous.targetGroup!==(mission.targetGroup||null)||JSON.stringify(previous.targetStudentIds)!==JSON.stringify(mission.targetStudentIds??null))fail(409,'対象の生徒が変更されました。最新の内容で開き直してください');
+          Object.assign(mission,validateMissionAudience(b.audience,data.students));
+        }
         // Update the template only. Draws and earned achievements retain their original rewards.
         mission[field]=text;mission.stampReward=b.stampReward;
         result={id:mission.id,kind:b.kind};
@@ -264,7 +291,7 @@ export async function handler(req) {
         if(b.action==='draw') {
           const priorDraw=data.draws.find(d=>d.studentId===id&&d.drawRequestId===b.requestId);
           if(priorDraw)return Response.json({...view(row,session),result:priorDraw},{headers});
-          const missions=data.missions.filter(m=>isMissionEligible(m,student.grade));
+          const missions=data.missions.filter(m=>isMissionEligible(m,student.grade,id));
           if(!missions.length) fail(400,'対象のミッションがありません');
           if(data.dailyPullLimit>0&&data.draws.filter(d=>d.studentId===id&&d.drawnAt===todayStr()&&!d.issuedByAdmin&&!d.hidden).length>=data.dailyPullLimit) fail(400,'今日のガチャ回数の上限です');
           const m=missions[Math.floor(Math.random()*missions.length)],date=todayStr();

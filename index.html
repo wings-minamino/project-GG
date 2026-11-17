@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-79NcGVWnG69EFaRYLvvq1MfEJzkBy9ih7X6jRUH7MEo='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=' 'sha256-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=' 'sha256-78ksOTFdJNZ2o6ijrAFpZhypcAjoWi3a5DKDRML5vzE='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://phswoncmibtmihpmlvdg.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ガチャミッション</title>
@@ -584,7 +584,8 @@ function gradeSortIndex(grade) {
 function studentsInGrades(students, grades) {
   return grades.length ? students.filter(student => grades.includes(student.grade)) : students;
 }
-function isMissionEligible(mission, studentGrade) {
+function isMissionEligible(mission, studentGrade, studentId) {
+  if (mission.targetStudentIds != null && !(Array.isArray(mission.targetStudentIds) && mission.targetStudentIds.includes(studentId))) return false;
   if (!mission.targetGroup) return true;
   const group = GRADE_GROUPS[mission.targetGroup];
   if (!group) return true;
@@ -723,7 +724,7 @@ function GachaMissionApp() {
   const gachaDrawing = useRef(false);
   const [newMissionText, setNewMissionText] = useState("");
   const [newMissionDeadline, setNewMissionDeadline] = useState("3");
-  const [newMissionTargetGroup, setNewMissionTargetGroup] = useState("");
+  const [newMissionAudience, setNewMissionAudience] = useState({targetGroup:null,targetStudentIds:null});
   const [dailyPullLimit, setDailyPullLimit] = useState(0);
   const [studentMonth, setStudentMonth] = useState(currentMonthKey());
   const [studentTab, setStudentTab] = useState("mission");
@@ -1072,19 +1073,16 @@ function GachaMissionApp() {
       status: "進行中"
     } : d));
   }
-  function addMission() {
+  async function addMission() {
     const text = newMissionText.trim();
     const deadlineDays = Number(newMissionDeadline);
-    if (!text || !deadlineDays || deadlineDays <= 0) return;
-    setMissions([...missions, {
-      id: uid("mi"),
-      text,
-      deadlineDays,
-      targetGroup: newMissionTargetGroup || null
-    }]);
-    setNewMissionText("");
-    setNewMissionDeadline("3");
-    setNewMissionTargetGroup("");
+    if (!text || !Number.isSafeInteger(deadlineDays) || deadlineDays < 1 || newMissionAudience.targetStudentIds?.length === 0) return;
+    const saved = await studentAction('create_gacha_mission', {text, deadlineDays, audience:newMissionAudience});
+    if (saved) {
+      setNewMissionText("");
+      setNewMissionDeadline("3");
+      setNewMissionAudience({targetGroup:null,targetStudentIds:null});
+    }
   }
   function removeMission(id) {
     setMissions(missions.filter(m => m.id !== id));
@@ -1349,7 +1347,7 @@ function GachaMissionApp() {
   const myDraws = useMemo(() => draws.filter(d => d.studentId === currentStudentId && d.status !== "取消済み"), [draws, currentStudentId]);
   const myEligibleMissionCount = useMemo(() => {
     const currentStudent = students.find(s => s.id === currentStudentId);
-    return missions.filter(m => isMissionEligible(m, currentStudent ? currentStudent.grade : null)).length;
+    return missions.filter(m => isMissionEligible(m, currentStudent?.grade, currentStudentId)).length;
   }, [missions, students, currentStudentId]);
   const myTodayPullCount = useMemo(() => draws.filter(d => d.studentId === currentStudentId && d.drawnAt === todayStr() && !d.issuedByAdmin && !d.hidden).length, [draws, currentStudentId]);
   const myActive = myDraws.filter(d => !d.coinReward && d.status !== "承認済み" && !isDrawOverdue(d));
@@ -1367,7 +1365,11 @@ function GachaMissionApp() {
     const history = rankPrizeHistory[month];
     return history ? history.eligibility : rankPrizeEligibility([], month);
   }
-  const issueGradeStudents = useMemo(() => studentsInGrades(students, issueGrades), [students, issueGrades]);
+  const issueGradeStudents = useMemo(() => {
+    const candidates = studentsInGrades(students, issueGrades);
+    const targets = missions.find(m => m.id === issueMissionId)?.targetStudentIds;
+    return targets == null ? candidates : candidates.filter(student => targets.includes(student.id));
+  }, [students, issueGrades, missions, issueMissionId]);
   const issueRecipients = useMemo(() => {
     const selected = new Set(selectedStudentIds);
     return issueGradeStudents.filter(student => selected.has(student.id));
@@ -1574,8 +1576,7 @@ function GachaMissionApp() {
     setNewMissionText: setNewMissionText,
     newMissionDeadline: newMissionDeadline,
     setNewMissionDeadline: setNewMissionDeadline,
-    newMissionTargetGroup: newMissionTargetGroup,
-    setNewMissionTargetGroup: setNewMissionTargetGroup,
+    newMissionAudience, setNewMissionAudience, syncBusy,
     addMission: addMission,
     removeMission: removeMission,
     onMissionAction: studentAction,
@@ -2639,8 +2640,7 @@ function AdminView(props) {
     setNewMissionText,
     newMissionDeadline,
     setNewMissionDeadline,
-    newMissionTargetGroup,
-    setNewMissionTargetGroup,
+    newMissionAudience, setNewMissionAudience, syncBusy,
     addMission,
     removeMission,
     pendingApprovals,
@@ -2880,6 +2880,7 @@ function AdminView(props) {
   }, /*#__PURE__*/React.createElement("input", {
     style: styles.input,
     placeholder: "\u65B0\u3057\u3044\u30DF\u30C3\u30B7\u30E7\u30F3\u306E\u5185\u5BB9",
+    disabled:syncBusy, maxLength:2000, "aria-label":"新しい通常ミッションの内容",
     value: newMissionText,
     onChange: e => setNewMissionText(e.target.value)
   }), /*#__PURE__*/React.createElement("input", {
@@ -2890,32 +2891,20 @@ function AdminView(props) {
     type: "number",
     min: "1",
     placeholder: "\u671F\u9650(\u65E5)",
+    disabled:syncBusy, "aria-label":"通常ミッションの期限（日）",
     value: newMissionDeadline,
     onChange: e => setNewMissionDeadline(e.target.value)
-  }), /*#__PURE__*/React.createElement("select", {
-    style: {
-      ...styles.input,
-      flex: "0 0 130px"
-    },
-    value: newMissionTargetGroup,
-    onChange: e => setNewMissionTargetGroup(e.target.value)
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "\u5168\u5B66\u5E74"), /*#__PURE__*/React.createElement("option", {
-    value: "elementary"
-  }, "\u5C0F\u5B66\u751F\u9650\u5B9A"), /*#__PURE__*/React.createElement("option", {
-    value: "juniorHigh"
-  }, "\u4E2D\u5B66\u751F\u9650\u5B9A"), /*#__PURE__*/React.createElement("option", {
-    value: "highSchool"
-  }, "\u9AD8\u6821\u751F\u9650\u5B9A")), /*#__PURE__*/React.createElement("button", {
+  }), React.createElement(MissionAudiencePicker, {students,audience:newMissionAudience,onChange:setNewMissionAudience,disabled:syncBusy}), React.createElement("button", {
     className:"gg-primary",
     style: styles.gachaBtnSmall,
+    disabled: syncBusy || !newMissionText?.trim() || !Number.isSafeInteger(Number(newMissionDeadline)) || Number(newMissionDeadline)<1 || newMissionAudience?.targetStudentIds?.length === 0,
     onClick: addMission
   }, "\u8FFD\u52A0")), /*#__PURE__*/React.createElement("div", {
     style: styles.missionAdminList
   }, missions.map(m => React.createElement(MissionEditor, {
-    key:m.id,kind:'normal',mission:m,onAction:props.onMissionAction,onDelete:()=>removeMission(m.id)
+    key:m.id,kind:'normal',mission:m,students,onAction:props.onMissionAction,onDelete:()=>removeMission(m.id)
   }, React.createElement('span',null,m.text,'（期限: ',m.deadlineDays,'日 ／ シール ',m.stampReward||1,'枚）',
+    m.targetStudentIds!=null&&React.createElement('span',{style:styles.studentMeta},' ／ 対象生徒：',m.targetStudentIds.map(id=>students.find(s=>s.id===id)?.name||'登録終了').join('、')),
     m.targetGroup&&GRADE_GROUPS[m.targetGroup]&&React.createElement('span',{style:styles.studentMeta},' — ',GRADE_GROUPS[m.targetGroup].label)))), missions.length === 0 && /*#__PURE__*/React.createElement("div", {
     className:"gg-empty-message",
     style: styles.emptyBox
@@ -3373,7 +3362,7 @@ function AdminView(props) {
   }, missions.map(m => /*#__PURE__*/React.createElement("option", {
     key: m.id,
     value: m.id
-  }, m.text, "(\u671F\u9650: ", m.deadlineDays, "\u65E5 / シール ",m.stampReward||1,"枚)"))), /*#__PURE__*/React.createElement("optgroup", {
+  }, m.targetStudentIds!=null?'【生徒指定】':'',m.text, "(\u671F\u9650: ", m.deadlineDays, "\u65E5 / シール ",m.stampReward||1,"枚)"))), /*#__PURE__*/React.createElement("optgroup", {
     label: "特別ミッション"
   }, testMissions.map(tm => /*#__PURE__*/React.createElement("option", {
     key: tm.id,
@@ -3499,13 +3488,14 @@ function AdminView(props) {
 function rankPrizeAdminStatus(eligibility) {
   return `シールを1枚以上獲得した生徒 ${eligibility.participants}人 ／ ${RANK_PRIZE_MIN_PARTICIPANTS}人で景品解禁${eligibility.unlocked ? '（達成）' : '（未達成）'}`;
 }
-function MissionEditor({kind,mission,onAction,onDelete,children}) {
+function MissionEditor({kind,mission,students,onAction,onDelete,children}) {
   const h=React.createElement;
   const [draft,setDraft]=useState(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
   const saving=useRef(false);
   const content=kind==='hidden'?mission.name:mission.text;
   function start() {
-    setDraft({text:content,reward:String(mission.stampReward||1),expected:{text:content,stampReward:mission.stampReward||1}});
+    const audience = {targetGroup:mission.targetGroup||null,targetStudentIds:mission.targetStudentIds??null};
+    setDraft({text:content,reward:String(mission.stampReward||1),audience,expected:{text:content,stampReward:mission.stampReward||1,audience}});
     setMessage('');
   }
   async function submit(e) {
@@ -3514,9 +3504,12 @@ function MissionEditor({kind,mission,onAction,onDelete,children}) {
     const text=draft.text.trim(),stampReward=Number(draft.reward);
     if(!text||text.length>2000){setMessage('ミッションの内容を1〜2000文字で入力してください。');return;}
     if(!Number.isSafeInteger(stampReward)||stampReward<1){setMessage('シールの枚数は1以上の整数で入力してください。');return;}
+    if(kind==='normal' && draft.audience.targetStudentIds?.length===0){setMessage('対象の生徒を1人以上選んでください。');return;}
     saving.current=true;setBusy(true);setMessage('');
     try {
-      const result=await onAction('edit_mission',{kind,id:mission.id,text,stampReward,expected:draft.expected});
+      const changes = {kind,id:mission.id,text,stampReward,expected:draft.expected};
+      if(kind==='normal' && JSON.stringify(draft.audience)!==JSON.stringify(draft.expected.audience)) changes.audience=draft.audience;
+      const result=await onAction('edit_mission',changes);
       if(result){setDraft(null);setMessage('保存しました。');}
       else setMessage('保存できませんでした。画面下の同期状況を確認してください。入力内容は残しています。');
     } catch(e) {setMessage(e.message||'保存できませんでした。もう一度お試しください。');}
@@ -3533,13 +3526,44 @@ function MissionEditor({kind,mission,onAction,onDelete,children}) {
         h('textarea',{required:true,maxLength:2000,rows:3,autoFocus:true,disabled:busy,value:draft.text,onChange:e=>setDraft({...draft,text:e.target.value}),style:{...styles.input,display:'block',width:'100%',boxSizing:'border-box',resize:'vertical',marginTop:6}})),
       h('label',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginTop:12,fontWeight:700}},'シールの枚数',
         h('input',{type:'number',required:true,min:1,step:1,disabled:busy,value:draft.reward,onChange:e=>setDraft({...draft,reward:e.target.value}),style:{...styles.input,flex:'0 1 90px',width:90,minWidth:0}}),'枚'),
+      kind==='normal'&&h(MissionAudiencePicker,{audience:draft.audience,students,onChange:audience=>setDraft({...draft,audience}),disabled:busy}),
       h('p',{style:{...styles.hintText,lineHeight:1.6}},kind==='hidden'?'変更は今後の達成分に反映します。すでに獲得したシールは変わりません。':'変更は今後引く・送るミッションに反映します。配布済みの内容・シール枚数は変わりません。'),
       h('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},
         h('button',{type:'submit',disabled:busy,className:'gg-primary',style:styles.gachaBtnSmall},busy?'保存中…':'保存'),
         h('button',{type:'button',disabled:busy,style:styles.rejectBtn,onClick:()=>{setDraft(null);setMessage('');}},'キャンセル'))),
     message&&h('p',{role:'status',style:{margin:'10px 0 0',lineHeight:1.6,color:draft?'#a52b2b':'#36734a'}},message));
 }
+function MissionAudiencePicker({students=[],audience={targetGroup:null,targetStudentIds:null},onChange,disabled}) {
+  const h=React.createElement;
+  const [search,setSearch]=useState('');
+  const ids=audience.targetStudentIds;
+  const mode=ids==null ? audience.targetGroup||'' : 'students';
+  const query=search.trim();
+  const visible=mode==='students' ? students.filter(s=>!query || s.name.includes(query) || s.number.includes(query)) : [];
+  const registered=new Set(mode==='students' ? students.map(s=>s.id) : []);
+  return h('fieldset',{className:'gg-mission-audience',disabled},
+    h('legend',null,'ガチャの対象'),
+    h('select',{'aria-label':'ガチャの対象',value:mode,style:styles.input,onChange:e=>{
+      const value=e.target.value;
+      setSearch('');
+      onChange({targetGroup:value==='students'?null:value||null,targetStudentIds:value==='students'?[]:null});
+    }},h('option',{value:''},'全生徒'),Object.entries(GRADE_GROUPS).map(([key,group])=>h('option',{key,value:key},group.label)),h('option',{value:'students'},'生徒を指定')),
+    mode==='students'&&h(React.Fragment,null,
+      h('input',{type:'search',value:search,'aria-label':'名前・生徒番号で検索',placeholder:'名前・生徒番号で検索',style:styles.input,onChange:e=>setSearch(e.target.value)}),
+      h('div',{className:'gg-target-students'},visible.map(student=>h('label',{key:student.id},
+        h('input',{type:'checkbox',checked:ids.includes(student.id),onChange:e=>onChange({...audience,targetStudentIds:e.target.checked?[...ids,student.id]:ids.filter(id=>id!==student.id)})}),
+        student.name,'（',[student.grade,student.number].filter(Boolean).join('・'),'）')),
+        ids.filter(id=>!registered.has(id)).map(id=>h('label',{key:id},
+          h('input',{type:'checkbox',checked:true,onChange:()=>onChange({...audience,targetStudentIds:ids.filter(item=>item!==id)})}),'登録終了の生徒（チェックを外して除外）')),
+        visible.length===0&&h('span',null,students.length?'該当する生徒がいません。':'登録されている生徒がいません。')),
+      h('small',{role:'status'},ids.length?ids.length+'人選択中':'対象の生徒を1人以上選んでください。')));
+}
 const css = `
+  .gg-mission-audience { flex:1 0 100%; box-sizing:border-box; min-width:0; margin:6px 0; padding:8px 12px 12px; border:1px solid #e5dfd6; border-radius:10px; }
+  .gg-mission-audience legend { padding:0 4px; font-size:13px; font-weight:700; }
+  .gg-mission-audience input[type="search"] { display:block; width:100%; box-sizing:border-box; margin:8px 0; }
+  .gg-target-students { display:grid; max-height:12rem; overflow:auto; gap:2px; margin:6px 0; }
+  .gg-target-students label { display:flex; align-items:center; gap:8px; padding:5px 0; cursor:pointer; }
   .gg-issue-grades { min-width:0; margin:0 0 12px; padding:9px 12px 12px; border:1px solid #e5dfd6; border-radius:10px; }
   .gg-issue-grades legend { padding:0 5px; font-size:13px; font-weight:700; }
   .gg-issue-grade-options { display:flex; flex-wrap:wrap; gap:6px; }

@@ -104,6 +104,49 @@ async function call(body,token){if(body.action==='login'&&body.number!==undefine
   console.log('PASS: mission edit authorization, validation, atomic retries, conflict protection, normal/special/hidden edits, reload, future draw rewards and preserved issued rewards');
   }
 
+  {
+    const before=structuredClone(row);
+    row.data.students[1].grade=row.data.students[0].grade;
+    row.data.students.push({id:'s3',name:'Three',number:'C',grade:'中2'});
+    const second=(await call({action:'login',number:'B'})).token;
+    const third=(await call({action:'login',number:'C'})).token;
+    const create={action:'create_gacha_mission',requestId:'personal-create',text:'個別の復習',deadlineDays:3,
+      audience:{targetGroup:null,targetStudentIds:['s1','s3']}};
+    assert.equal((await call(create,student)).status,403);
+    for (const ids of [[],['missing'],['s1','s1'],'s1']) {
+      assert.equal((await call({...create,audience:{targetGroup:null,targetStudentIds:ids}},admin)).status,400);
+    }
+    const created=await call(create,admin);
+    assert.equal(created.status,200);
+    const id=created.result.id;
+    assert.equal((await call(create,admin)).result.id,id);
+    assert.equal(row.data.missions.length,2);
+    for(const token of [student,third]) {
+      const templates=(await call({action:'get'},token)).data.missions;
+      assert.deepEqual(templates.map(m=>m.id),['m1',id]);
+      assert.ok(!Object.hasOwn(templates[1],'targetStudentIds'));
+    }
+    assert.deepEqual((await call({action:'get'},second)).data.missions.map(m=>m.id),['m1']);
+    const privateOnly=structuredClone(row.data);
+    privateOnly.missions=privateOnly.missions.filter(m=>m.id===id);
+    assert.equal((await call({action:'save',version:row.version,requestId:'private-only',data:privateOnly},admin)).status,200);
+    assert.equal((await call({action:'draw',requestId:'not-selected',studentId:'s1',missionId:id},second)).status,400);
+    assert.equal((await call({action:'draw',requestId:'selected'},student)).result.missionId,id);
+    const edit={action:'edit_mission',kind:'normal',id,text:'個別の復習',stampReward:1,
+      expected:{text:'個別の復習',stampReward:1,audience:create.audience},audience:{targetGroup:null,targetStudentIds:['s2']},requestId:'move-target'};
+    assert.equal((await call(edit,admin)).status,200);
+    assert.equal((await call({...edit,requestId:'stale-target',audience:{targetGroup:null,targetStudentIds:null}},admin)).status,409);
+    assert.equal((await call({action:'get'},student)).data.missions.length,0);
+    assert.equal((await call({action:'get'},student)).data.draws[0].missionText,'個別の復習');
+    assert.equal((await call({action:'draw',requestId:'new-target'},second)).result.missionId,id);
+    assert.equal((await call({action:'draw',requestId:'removed-target'},third)).status,400);
+    const grouped={...create,requestId:'grade-create',audience:{targetGroup:'elementary',targetStudentIds:null}};
+    const gradeId=(await call(grouped,admin)).result.id;
+    assert.deepEqual((await call({action:'get'},student)).data.missions.map(m=>m.id),[gradeId]);
+    assert.equal((await call({action:'get'},third)).data.missions.length,0);
+    row=before;
+    console.log('PASS: personal gacha creation, deduplication, cross-grade selections, same-grade exclusion, private draw pools, target edits and original draws');
+  }
   const currentDate=new Date(Date.now()+9*3600000).toISOString().slice(0,10);
   const expiredFixtures=[
     {id:'expired-active',studentId:'s1',status:'進行中',deadline:'2000-01-01'},

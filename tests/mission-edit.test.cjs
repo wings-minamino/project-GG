@@ -36,6 +36,32 @@ for(const file of ['index.html','admin/index.html']){
  issueCtx.issueMission();assert.equal(issueCtx.output[0].value,4);
  delete issueCtx.missions[0].stampReward;issueCtx.issueMission();assert.equal(issueCtx.output[0].value,1);
  issueCtx.missions=[];issueCtx.testMissions=[{id:'m',text:'特別',stampReward:5,deadline:'2026-11-30'}];issueCtx.issueMission();assert.equal(issueCtx.output[0].value,5);
+ // Restricting a mission starts with no recipients. Searching must preserve earlier selections.
+ ctx.GRADE_GROUPS={elementary:{label:'小学生限定'}};
+ const audienceProps={students:[{id:'a',name:'青木',number:'101',grade:'中1'},{id:'b',name:'井上',number:'102',grade:'中1'}],
+   audience:{targetGroup:null,targetStudentIds:null},onChange:value=>{audienceProps.audience=value;}};
+ state.length=0;
+ const renderPicker=()=>{cursor=0;return ctx.MissionAudiencePicker(audienceProps);};
+ const inputOf=(type)=>nodes(renderPicker()).find(n=>n.props.type===type);
+ nodes(renderPicker()).find(n=>n.tag==='select').props.onChange({target:{value:'students'}});
+ assert.ok(text(renderPicker()).includes('1人以上'));
+ inputOf('search').props.onChange({target:{value:'青木'}});
+ inputOf('checkbox').props.onChange({target:{checked:true}});
+ inputOf('search').props.onChange({target:{value:'102'}});
+ inputOf('checkbox').props.onChange({target:{checked:true}});
+ assert.deepEqual(Array.from(audienceProps.audience.targetStudentIds),['a','b']);
+ assert.ok(text(renderPicker()).includes('2人選択中'));
+ const createCtx=vm.createContext({newMissionText:'  対象別の復習  ',newMissionDeadline:'3',newMissionAudience:audienceProps.audience,
+   studentAction:async(action,body)=>{calls.push({action,...body});return actionResult;},
+   setNewMissionText:v=>createCtx.newMissionText=v,setNewMissionDeadline:v=>createCtx.newMissionDeadline=v,
+   setNewMissionAudience:v=>createCtx.newMissionAudience=v});
+ vm.runInContext(source.slice(source.indexOf('  async function addMission()'),source.indexOf('  function removeMission(')),createCtx);
+ calls=[];actionResult=null;await createCtx.addMission();
+ assert.equal(createCtx.newMissionText,'  対象別の復習  ');
+ assert.deepEqual(Array.from(calls[0].audience.targetStudentIds),['a','b']);
+ assert.equal(calls[0].action,'create_gacha_mission');
+ actionResult={result:{id:'added'}};await createCtx.addMission();assert.equal(createCtx.newMissionText,'');
+ assert.equal(createCtx.newMissionAudience.targetStudentIds,null);
  console.log('PASS:',file,'edit prefill, validation, cancel, draft preservation, conflict baseline, saved state and teacher-issued rewards');
 }
 })().catch(e=>{console.error(e);process.exitCode=1;});

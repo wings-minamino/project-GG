@@ -128,7 +128,8 @@ function gradeSortIndex(grade) {
   const idx = GRADE_LEVELS.indexOf(grade);
   return idx === -1 ? GRADE_LEVELS.length : idx;
 }
-function isMissionEligible(mission, studentGrade) {
+function isMissionEligible(mission, studentGrade, studentId) {
+  if (mission.targetStudentIds != null && !(Array.isArray(mission.targetStudentIds) && mission.targetStudentIds.includes(studentId))) return false;
   if (!mission.targetGroup) return true;
   const group = GRADE_GROUPS[mission.targetGroup];
   if (!group) return true;
